@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tagesboard — Inoffizielles Nachrichten-Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  :root {
+    --border-light: rgba(0,0,0,0.08);
+    --border-dark: rgba(255,255,255,0.1);
+  }
+  * { -webkit-tap-highlight-color: transparent; }
+  html { font: 100%/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+  body {
+    background: #f2f2f7;
+    color: #1c1c1e;
+    transition: background 400ms ease, color 400ms ease;
+  }
+  html.dark body { background: #000000; color: #f5f5f7; }
+
+  .glass {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--border-light);
+  }
+  html.dark .glass {
+    background: rgba(30,30,32,0.55);
+    border: 1px solid var(--border-dark);
+  }
+  .glass-strong {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+  html.dark .glass-strong { background: rgba(20,20,22,0.75); }
+
+  .card {
+    border-radius: 20px;
+    transition: transform 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms ease, background 300ms ease;
+  }
+  .card:active { transform: scale(0.985); }
+  .btn {
+    transition: transform 100ms ease-out, background 150ms ease, opacity 150ms ease;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .display-text {
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #splash {
+    position: fixed; inset: 0; background: #000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 9999; transition: opacity 500ms ease;
+  }
+  #splash.hidden { opacity: 0; pointer-events: none; }
+  #splash-progress-track { width: min(320px, 70vw); height: 3px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow: hidden; margin-top: 28px; }
+  #splash-progress-bar { height: 100%; width: 0%; background: #ffffff; border-radius: 999px; }
+
+  .modal-overlay { transition: opacity 250ms ease; }
+  .modal-panel { transition: transform 250ms cubic-bezier(.2,.8,.2,1), opacity 250ms ease; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,120,128,0.3); border-radius: 999px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, rgba(120,120,128,0.12) 25%, rgba(120,120,128,0.22) 37%, rgba(120,120,128,0.12) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.6s ease infinite;
+    border-radius: 12px;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ SPLASH SCREEN ============ -->
+<div id="splash">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/ARD_2019_logo.svg" alt="ARD Logo" class="w-40 sm:w-56" style="filter: brightness(0) invert(1);">
+  <div id="splash-progress-track"><div id="splash-progress-bar"></div></div>
+  <p class="text-white/40 text-xs mt-4 tracking-wide">Inoffizielles Dashboard — wird geladen …</p>
+</div>
+
+<!-- ============ ERROR MODAL ============ -->
+<div id="error-modal" class="fixed inset-0 z-[9998] hidden items-center justify-center p-4 modal-overlay opacity-0" style="background: rgba(0,0,0,0.5);">
+  <div id="error-modal-panel" class="modal-panel opacity-0 scale-95 max-w-md w-full rounded-3xl p-6 bg-red-950/80 backdrop-blur-md border border-red-500/30 text-white shadow-2xl">
+    <div class="flex items-start gap-3">
+      <div class="shrink-0 mt-0.5 text-red-400"><i data-lucide="alert-triangle" class="w-7 h-7"></i></div>
+      <div class="flex-1">
+        <h3 class="text-lg font-semibold">Fehler beim Laden der Daten</h3>
+        <p id="error-modal-message" class="text-sm text-red-100/80 mt-1.5 leading-relaxed">Ein Dienst konnte nicht erreicht werden.</p>
+      </div>
+      <button onclick="closeErrorModal()" class="text-red-200/60 hover:text-white btn"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="flex gap-2 mt-6">
+      <button id="error-modal-retry" class="btn flex-1 rounded-full bg-red-500/90 hover:bg-red-500 text-white text-sm font-medium py-2.5">Erneut versuchen</button>
+      <button onclick="closeErrorModal()" class="btn flex-1 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-medium py-2.5">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NAV ============ -->
+<header class="sticky top-0 z-50 glass-strong border-b" style="border-color: var(--border-light);">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/ARD_2019_logo.svg" alt="ARD" class="h-6 dark:invert">
+      <span class="hidden sm:inline text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-neutral-500 dark:text-neutral-400">Inoffiziell</span>
+    </div>
+    <nav class="flex items-center gap-1 sm:gap-2">
+      <a href="notes.html" target="_self" class="btn hidden sm:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-neutral-700 dark:text-neutral-200">
+        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Pressekonferenz Notizen
+      </a>
+      <a href="radio.html" target="_self" class="btn hidden sm:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-neutral-700 dark:text-neutral-200">
+        <i data-lucide="radio" class="w-4 h-4"></i> Verbindungssystem Radio
+      </a>
+      <a href="notes.html" target="_self" class="btn sm:hidden p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><i data-lucide="clipboard-list" class="w-5 h-5"></i></a>
+      <a href="radio.html" target="_self" class="btn sm:hidden p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><i data-lucide="radio" class="w-5 h-5"></i></a>
+      <button id="theme-toggle" onclick="toggleTheme()" class="btn p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 ml-1">
+        <i data-lucide="sun-moon" class="w-5 h-5"></i>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ BREAKING NEWS BANNER ============ -->
+<div id="breaking-banner" class="hidden max-w-7xl mx-auto mt-4 px-4 sm:px-6">
+  <div class="rounded-2xl bg-red-600 text-white px-4 py-3 flex items-start gap-3 shadow-lg">
+    <i data-lucide="siren" class="w-5 h-5 mt-0.5 shrink-0"></i>
+    <div class="flex-1 min-w-0">
+      <p class="text-xs font-semibold uppercase tracking-wide text-red-100">Eilmeldung</p>
+      <p id="breaking-title" class="font-semibold leading-snug"></p>
+      <p id="breaking-summary" class="text-sm text-red-100/90 mt-0.5 leading-snug"></p>
+      <p id="breaking-time" class="text-xs text-red-200/70 mt-1"></p>
+    </div>
+    <button onclick="document.getElementById('breaking-banner').classList.add('hidden')" class="btn text-red-100 hover:text-white shrink-0"><i data-lucide="x" class="w-5 h-5"></i></button>
+  </div>
+</div>
+
+<!-- ============ MAIN ============ -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+  <!-- Clocks & IP row -->
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="card glass p-5">
+      <p class="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"><i data-lucide="landmark" class="w-3.5 h-3.5"></i> Berlin</p>
+      <p id="clock-berlin" class="display-text text-4xl sm:text-5xl font-semibold mt-2">--:--:--</p>
+      <span id="berlin-offset" class="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-neutral-500 dark:text-neutral-400">UTC+?</span>
+    </div>
+
+    <div class="card glass p-5">
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Lokale Zeit</p>
+        <select id="tz-select" class="text-xs bg-transparent border border-black/10 dark:border-white/15 rounded-full px-2 py-1 text-neutral-600 dark:text-neutral-300"></select>
+      </div>
+      <p id="clock-local" class="display-text text-4xl sm:text-5xl font-semibold mt-2">--:--:--</p>
+      <span id="local-offset" class="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-neutral-500 dark:text-neutral-400">UTC+?</span>
+    </div>
+
+    <div class="card glass p-5">
+      <p class="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> IP-Standort</p>
+      <div id="ip-info" class="mt-2 space-y-1">
+        <div class="skeleton h-5 w-32"></div>
+        <div class="skeleton h-4 w-40 mt-2"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Weather -->
+  <section class="card glass p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 class="font-semibold flex items-center gap-2"><i data-lucide="cloud-sun" class="w-5 h-5"></i> Wetter</h2>
+      <div class="flex items-center gap-2">
+        <input id="weather-input" type="text" placeholder="Ort suchen…" class="text-sm bg-black/5 dark:bg-white/10 rounded-full px-3 py-1.5 outline-none w-40 sm:w-48 placeholder:text-neutral-400">
+        <button onclick="searchWeather()" class="btn p-2 rounded-full bg-black/5 dark:bg-white/10"><i data-lucide="search" class="w-4 h-4"></i></button>
+        <button onclick="useGeolocation()" class="btn hidden sm:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full bg-blue-500 text-white"><i data-lucide="locate-fixed" class="w-4 h-4"></i> Standort freigeben</button>
+      </div>
+    </div>
+    <div id="weather-content" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div>
+    </div>
+  </section>
+
+  <!-- Tagesschau News -->
+  <section>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold flex items-center gap-2"><i data-lucide="newspaper" class="w-5 h-5"></i> Tagesschau Nachrichten</h2>
+      <button onclick="loadNews()" class="btn p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+    </div>
+    <div id="news-content" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="skeleton h-64"></div><div class="skeleton h-64"></div><div class="skeleton h-64"></div>
+    </div>
+  </section>
+
+  <!-- Travel Advisories -->
+  <section class="card glass p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 class="font-semibold flex items-center gap-2"><i data-lucide="shield-alert" class="w-5 h-5"></i> Reise- &amp; Sicherheitshinweise</h2>
+      <div class="flex items-center gap-2">
+        <input id="country-input" type="text" placeholder="Land suchen…" class="text-sm bg-black/5 dark:bg-white/10 rounded-full px-3 py-1.5 outline-none w-44 placeholder:text-neutral-400">
+        <button onclick="searchAdvisory()" class="btn p-2 rounded-full bg-black/5 dark:bg-white/10"><i data-lucide="search" class="w-4 h-4"></i></button>
+      </div>
+    </div>
+    <div id="advisory-content"><div class="skeleton h-20"></div></div>
+  </section>
+
+  <footer class="text-center text-xs text-neutral-400 dark:text-neutral-600 pt-4 pb-8">
+    Inoffizielles, privat betriebenes Dashboard. Nicht verbunden mit oder autorisiert durch die ARD. Datenquellen: Tagesschau API, wttr.in, ipapi.co, Auswärtiges Amt.
+  </footer>
+</main>
+
+<script>
+lucide.createIcons();
+
+/* ---------------- THEME ---------------- */
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+}
+(function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(theme);
+})();
+function toggleTheme() {
+  const isDark = document.documentElement.classList.contains('dark');
+  const next = isDark ? 'light' : 'dark';
+  applyTheme(next);
+  localStorage.setItem('theme', next);
+}
+
+/* ---------------- ERROR MODAL ---------------- */
+let lastFailedRetry = null;
+function showErrorModal(serviceMessage, retryFn) {
+  const modal = document.getElementById('error-modal');
+  const panel = document.getElementById('error-modal-panel');
+  document.getElementById('error-modal-message').textContent = serviceMessage;
+  lastFailedRetry = retryFn;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  requestAnimationFrame(() => {
+    modal.classList.remove('opacity-0');
+    panel.classList.remove('opacity-0', 'scale-95');
+  });
+  document.getElementById('error-modal-retry').onclick = () => {
+    closeErrorModal();
+    if (lastFailedRetry) lastFailedRetry();
+  };
+}
+function closeErrorModal() {
+  const modal = document.getElementById('error-modal');
+  const panel = document.getElementById('error-modal-panel');
+  modal.classList.add('opacity-0');
+  panel.classList.add('opacity-0', 'scale-95');
+  setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 250);
+}
+window.addEventListener('error', (e) => {
+  console.error('Unhandled error:', e.error || e.message);
+});
+
+/* ---------------- CORS FALLBACK FETCH ---------------- */
+async function fetchWithCorsFallback(url, { timeout = 10000 } = {}) {
+  const proxies = [
+    u => u,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`
+  ];
+  let lastErr;
+  for (const build of proxies) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      const res = await fetch(build(url), { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
+/* ---------------- SPLASH SCREEN ---------------- */
+function runSplash(durationSeconds) {
+  const splash = document.getElementById('splash');
+  const bar = document.getElementById('splash-progress-bar');
+  splash.classList.remove('hidden');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${durationSeconds}s linear`;
+    requestAnimationFrame(() => { bar.style.width = '100%'; });
+  });
+  setTimeout(() => { splash.classList.add('hidden'); }, durationSeconds * 1000);
+}
+runSplash(10); // initial load: exactly 10 seconds
+
+setInterval(() => {
+  // Bell-curve random duration between ~5 and 25 seconds
+  const randomDuration = Math.round(((Math.random() + Math.random() + Math.random()) / 3) * 20 + 5);
+  runSplash(randomDuration);
+}, 600000); // every 10 minutes
+
+/* ---------------- CLOCKS ---------------- */
+const TIMEZONES = [
+  'Europe/Berlin','Europe/London','Europe/Moscow','Europe/Paris','Europe/Madrid',
+  'America/New_York','America/Los_Angeles','America/Chicago','America/Sao_Paulo',
+  'Asia/Tokyo','Asia/Shanghai','Asia/Dubai','Asia/Kolkata','Asia/Singapore',
+  'Australia/Sydney','Pacific/Auckland','Africa/Johannesburg','Africa/Cairo'
+];
+function populateTzSelect() {
+  const sel = document.getElementById('tz-select');
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const saved = localStorage.getItem('customTimezone') || browserTz || 'Europe/Berlin';
+  const all = Array.from(new Set([browserTz, ...TIMEZONES]));
+  sel.innerHTML = all.map(tz => `<option value="${tz}" ${tz === saved ? 'selected' : ''}>${tz.replace('_',' ')}</option>`).join('');
+  sel.addEventListener('change', () => localStorage.setItem('customTimezone', sel.value));
+}
+populateTzSelect();
+
+function getOffsetLabel(tz) {
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' });
+    const part = dtf.formatToParts(new Date()).find(p => p.type === 'timeZoneName');
+    return part ? part.value.replace('GMT', 'UTC') : 'UTC';
+  } catch { return 'UTC'; }
+}
+function formatTimeInTz(tz) {
+  return new Intl.DateTimeFormat('de-DE', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date());
+}
+function tickClocks() {
+  document.getElementById('clock-berlin').textContent = formatTimeInTz('Europe/Berlin');
+  document.getElementById('berlin-offset').textContent = getOffsetLabel('Europe/Berlin');
+  const localTz = document.getElementById('tz-select').value || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  document.getElementById('clock-local').textContent = formatTimeInTz(localTz);
+  document.getElementById('local-offset').textContent = getOffsetLabel(localTz);
+}
+setInterval(tickClocks, 1000);
+tickClocks();
+
+/* ---------------- IP INFO ---------------- */
+let detectedCountry = null;
+async function loadIpInfo() {
+  try {
+    const data = await fetchWithCorsFallback('https://ipapi.co/json/');
+    detectedCountry = data.country_name;
+    document.getElementById('ip-info').innerHTML = `
+      <p class="text-sm font-medium">${data.ip || '—'}</p>
+      <p class="text-sm text-neutral-500 dark:text-neutral-400">${data.city || ''}${data.city && data.country_name ? ', ' : ''}${data.country_name || ''}</p>
+    `;
+    if (!localStorage.getItem('weatherLocation') && data.city) {
+      loadWeather(data.city);
+    }
+    loadAdvisory(data.country_name || 'Bosnien und Herzegowina');
+  } catch (err) {
+    document.getElementById('ip-info').innerHTML = `<p class="text-sm text-neutral-400">Nicht verfügbar</p>`;
+    showErrorModal('Der IP-Standortdienst (ipapi.co) konnte nicht erreicht werden.', loadIpInfo);
+    loadWeather('Berlin');
+    loadAdvisory('Bosnien und Herzegowina');
+  }
+}
+loadIpInfo();
+
+/* ---------------- WEATHER ---------------- */
+function weatherIcon(code) {
+  const map = { clear: 'sun', sunny: 'sun', cloud: 'cloud', rain: 'cloud-rain', snow: 'cloud-snow', thunder: 'cloud-lightning', fog: 'cloud-fog', mist: 'cloud-fog' };
+  const c = (code || '').toLowerCase();
+  for (const k in map) if (c.includes(k)) return map[k];
+  return 'cloud';
+}
+async function loadWeather(location) {
+  const el = document.getElementById('weather-content');
+  el.innerHTML = `<div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div>`;
+  try {
+    const data = await fetchWithCorsFallback(`https://wttr.in/${encodeURIComponent(location)}?format=j1`);
+    const cur = data.current_condition[0];
+    const days = data.weather.slice(0, 3);
+    localStorage.setItem('weatherLocation', location);
+    document.getElementById('weather-input').value = location;
+    let html = `
+      <div class="text-center">
+        <i data-lucide="${weatherIcon(cur.weatherDesc[0].value)}" class="w-8 h-8 mx-auto mb-1 text-blue-500"></i>
+        <p class="text-2xl font-semibold">${cur.temp_C}°C</p>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">${cur.weatherDesc[0].value}</p>
+      </div>
+      <div class="text-center flex flex-col justify-center">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">Gefühlt</p>
+        <p class="text-lg font-medium">${cur.FeelsLikeC}°C</p>
+      </div>
+      <div class="text-center flex flex-col justify-center">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">Luftfeuchtigkeit</p>
+        <p class="text-lg font-medium">${cur.humidity}%</p>
+      </div>
+      <div class="text-center flex flex-col justify-center">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">Wind</p>
+        <p class="text-lg font-medium">${cur.windspeedKmph} km/h</p>
+      </div>
+    `;
+    days.forEach(d => {
+      html += `
+      <div class="text-center col-span-1">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">${d.date}</p>
+        <p class="text-sm font-medium">${d.mintempC}° / ${d.maxtempC}°</p>
+      </div>`;
+    });
+    el.innerHTML = html;
+    lucide.createIcons();
+  } catch (err) {
+    el.innerHTML = `<p class="col-span-4 text-sm text-neutral-400">Wetterdaten nicht verfügbar</p>`;
+    showErrorModal('Der Wetterdienst (wttr.in) konnte nicht erreicht werden.', () => loadWeather(location));
+  }
+}
+function searchWeather() {
+  const val = document.getElementById('weather-input').value.trim();
+  if (val) loadWeather(val);
+}
+function useGeolocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => loadWeather(`${pos.coords.latitude},${pos.coords.longitude}`),
+    () => showErrorModal('Der Standortzugriff wurde verweigert oder ist nicht verfügbar.', useGeolocation)
+  );
+}
+(function initWeather() {
+  const saved = localStorage.getItem('weatherLocation');
+  if (saved) loadWeather(saved);
+})();
+
+/* ---------------- TAGESSCHAU NEWS ---------------- */
+async function loadNews() {
+  const el = document.getElementById('news-content');
+  el.innerHTML = `<div class="skeleton h-64"></div><div class="skeleton h-64"></div><div class="skeleton h-64"></div>`;
+  try {
+    const data = await fetchWithCorsFallback('https://www.tagesschau.de/api2u/homepage/');
+    const items = (data.news || []).slice(0, 9);
+    const breaking = (data.news || []).find(n => n.breakingNews);
+    if (breaking) {
+      document.getElementById('breaking-title').textContent = breaking.title;
+      document.getElementById('breaking-summary').textContent = breaking.firstSentence || '';
+      document.getElementById('breaking-time').textContent = new Date(breaking.date).toLocaleString('de-DE');
+      document.getElementById('breaking-banner').classList.remove('hidden');
+    }
+    el.innerHTML = items.map(item => `
+      <a href="${item.detailsweb || '#'}" target="_self" class="card glass p-0 overflow-hidden block hover:shadow-lg">
+        ${item.teaserImage && item.teaserImage.imageVariants ? `<img src="${Object.values(item.teaserImage.imageVariants)[0]}" class="w-full h-36 object-cover" loading="lazy">` : ''}
+        <div class="p-4">
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">${item.date ? new Date(item.date).toLocaleString('de-DE') : ''}</p>
+          <h3 class="font-semibold text-sm leading-snug">${item.title || ''}</h3>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 line-clamp-3">${item.firstSentence || ''}</p>
+        </div>
+      </a>
+    `).join('') || `<p class="col-span-3 text-sm text-neutral-400">Keine Nachrichten verfügbar</p>`;
+  } catch (err) {
+    el.innerHTML = `<p class="col-span-3 text-sm text-neutral-400">Nachrichten nicht verfügbar</p>`;
+    showErrorModal('Die Tagesschau-API konnte nicht erreicht werden.', loadNews);
+  }
+}
+loadNews();
+setInterval(loadNews, 120000);
+
+/* ---------------- TRAVEL ADVISORIES ---------------- */
+async function loadAdvisory(countryQuery) {
+  const el = document.getElementById('advisory-content');
+  el.innerHTML = `<div class="skeleton h-20"></div>`;
+  document.getElementById('country-input').value = countryQuery;
+  try {
+    const data = await fetchWithCorsFallback('https://www.auswaertiges-amt.de/opendata/travelwarning');
+    const list = Object.values(data.content || data || {});
+    const match = list.find(c => (c.title || '').toLowerCase().includes(countryQuery.toLowerCase()));
+    if (!match) {
+      el.innerHTML = `<p class="text-sm text-neutral-400">Kein Eintrag für "${countryQuery}" gefunden.</p>`;
+      return;
+    }
+    el.innerHTML = `
+      <details class="group">
+        <summary class="cursor-pointer flex items-center justify-between list-none">
+          <div>
+            <p class="font-medium">${match.title || countryQuery}</p>
+            <p class="text-xs mt-0.5 ${match.warning ? 'text-red-500' : 'text-green-500'}">${match.warning ? 'Reisewarnung aktiv' : 'Keine aktuelle Reisewarnung'}</p>
+          </div>
+          <i data-lucide="chevron-down" class="w-5 h-5 text-neutral-400 group-open:rotate-180 transition-transform"></i>
+        </summary>
+        <div class="mt-3 text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed space-y-2">
+          ${match.content ? match.content.replace(/<[^>]*>/g, '') : 'Keine weiteren Details verfügbar.'}
+        </div>
+      </details>
+    `;
+    lucide.createIcons();
+  } catch (err) {
+    el.innerHTML = `<p class="text-sm text-neutral-400">Hinweise nicht verfügbar</p>`;
+    showErrorModal('Der Dienst des Auswärtigen Amts konnte nicht erreicht werden.', () => loadAdvisory(countryQuery));
+  }
+}
+function searchAdvisory() {
+  const val = document.getElementById('country-input').value.trim();
+  if (val) loadAdvisory(val);
+}
+</script>
+</body>
+</html>
