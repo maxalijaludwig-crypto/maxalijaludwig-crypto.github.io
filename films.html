@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Reel Notes — Press Screening Companion</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'system-ui', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+<script src="https://unpkg.com/[email protected]"></script>
+
+<style>
+  :root {
+    --bg-app: #0b0b0d;
+    --bg-app-2: #111113;
+    --surface: rgba(30, 30, 33, 0.68);
+    --surface-solid: #19191b;
+    --elevated: #232326;
+    --hairline: rgba(255, 255, 255, 0.09);
+    --text-1: #f5f5f7;
+    --text-2: #9a9aa1;
+    --text-3: #5c5c60;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.16);
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --safelight: #ff2d20;
+    --safelight-soft: rgba(255, 45, 32, 0.14);
+    --radius-lg: 22px;
+    --radius-md: 16px;
+    color-scheme: dark;
+  }
+
+  html.stealth {
+    --bg-app: #000000;
+    --bg-app-2: #000000;
+    --surface: rgba(8, 8, 8, 0.9);
+    --surface-solid: #030303;
+    --elevated: #0a0a0a;
+    --hairline: rgba(255, 45, 32, 0.14);
+    --text-1: #c7c7c7;
+    --text-2: #6b6b6b;
+    --text-3: #3d3d3d;
+    --accent: var(--safelight);
+    --accent-soft: var(--safelight-soft);
+  }
+
+  * { -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: var(--bg-app);
+    color: var(--text-1);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.35s ease, color 0.35s ease;
+  }
+
+  body {
+    background: radial-gradient(circle at 50% -10%, var(--bg-app-2), var(--bg-app) 55%);
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  ::-webkit-scrollbar { width: 0px; height: 0px; }
+
+  .glass {
+    background: var(--surface);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--hairline);
+  }
+
+  .card-solid {
+    background: var(--surface-solid);
+    border: 1px solid var(--hairline);
+  }
+
+  .chip {
+    background: var(--elevated);
+    border: 1px solid var(--hairline);
+    color: var(--text-2);
+    transition: all 0.15s ease;
+  }
+  .chip:active { transform: scale(0.94); }
+  .chip.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .score-chip {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--elevated);
+    border: 1px solid var(--hairline);
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.12s ease;
+  }
+  .score-chip:active { transform: scale(0.9); }
+  .score-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+  html.stealth .score-chip.active { color: #1a0000; }
+
+  .tap-btn { transition: transform 0.12s ease, opacity 0.12s ease; }
+  .tap-btn:active { transform: scale(0.96); opacity: 0.85; }
+
+  .fade-in { animation: fadeIn 0.28s ease both; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .toast-enter { animation: toastIn 0.25s ease both; }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translate(-50%, 12px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  input::placeholder, textarea::placeholder { color: var(--text-3); }
+
+  input[type="text"], input[type="number"], textarea, select {
+    background: var(--elevated);
+    border: 1px solid var(--hairline);
+    color: var(--text-1);
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .switch-track {
+    width: 50px; height: 30px; border-radius: 999px;
+    background: var(--elevated);
+    border: 1px solid var(--hairline);
+    position: relative;
+    transition: background 0.2s ease;
+  }
+  .switch-track.on { background: var(--accent); border-color: var(--accent); }
+  .switch-knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 24px; height: 24px; border-radius: 999px;
+    background: #fff;
+    transition: transform 0.2s cubic-bezier(.4,1.4,.6,1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .switch-track.on .switch-knob { transform: translateX(20px); }
+
+  .divider-label {
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+  }
+
+  .lucide-icon { width: 18px; height: 18px; stroke-width: 2; }
+
+  .pulse-dot {
+    width: 7px; height: 7px; border-radius: 999px; background: var(--success);
+    box-shadow: 0 0 0 0 rgba(48,209,88,0.5);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(48,209,88,0.45); }
+    70% { box-shadow: 0 0 0 7px rgba(48,209,88,0); }
+    100% { box-shadow: 0 0 0 0 rgba(48,209,88,0); }
+  }
+</style>
+</head>
+
+<body class="font-sans">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="sticky top-0 z-40 glass">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background: var(--accent-soft); color: var(--accent);">
+          <i data-lucide="clapperboard" class="lucide-icon"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-[15px] font-semibold leading-tight truncate" style="color: var(--text-1);">Reel Notes</h1>
+          <p class="text-[11px] leading-tight truncate" style="color: var(--text-3);">Press screening companion</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <!-- Theater dimmer -->
+        <button id="dimmerToggle" class="flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-full chip tap-btn" aria-pressed="false" aria-label="Toggle theater dimmer stealth mode">
+          <i data-lucide="drama" class="lucide-icon" style="width:15px;height:15px;"></i>
+          <span class="switch-track" id="dimmerTrack"><span class="switch-knob"></span></span>
+        </button>
+
+        <!-- Auth -->
+        <div id="authArea"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-8">
+
+    <!-- ===================== NEW REVIEW FORM ===================== -->
+    <section class="card-solid rounded-3xl p-4 sm:p-5 fade-in" style="border-radius: var(--radius-lg);">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-[17px] font-semibold" style="color: var(--text-1);" id="formHeading">New Screening Review</h2>
+        <button id="cancelEditBtn" class="hidden text-[13px] font-medium px-2.5 py-1 rounded-full chip tap-btn" style="color: var(--danger);">Cancel edit</button>
+      </div>
+
+      <form id="reviewForm" class="space-y-5">
+
+        <!-- Film info -->
+        <div class="space-y-3">
+          <div>
+            <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Title <span style="color: var(--danger);">*</span></label>
+            <input id="fieldTitle" type="text" required placeholder="e.g. The Last Reel" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Director</label>
+              <input id="fieldDirector" type="text" placeholder="Director" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Festival / Venue</label>
+              <input id="fieldVenue" type="text" placeholder="e.g. TIFF, Screen 3" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Genre</label>
+              <input id="fieldGenre" type="text" placeholder="e.g. Drama" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Runtime (min)</label>
+              <input id="fieldRuntime" type="number" min="0" placeholder="e.g. 118" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Category scoring -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[12px] font-medium" style="color: var(--text-2);">Category scoring</span>
+            <span class="text-[11px]" style="color: var(--text-3);">Tap to rate 1–10</span>
+          </div>
+          <div id="scoreCategories" class="space-y-3"></div>
+        </div>
+
+        <!-- Auto rating summary -->
+        <div class="rounded-2xl p-4 flex items-center gap-4" style="background: var(--elevated); border: 1px solid var(--hairline);">
+          <div class="flex flex-col items-center justify-center shrink-0">
+            <span id="overallScore" class="text-[34px] font-bold leading-none tabular-nums" style="color: var(--text-1);">–</span>
+            <span class="text-[10px] mt-0.5" style="color: var(--text-3);">/ 10</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5" id="starRow"></div>
+            <span id="verdictBadge" class="inline-flex items-center gap-1.5 text-[12px] font-semibold px-2.5 py-1 rounded-full" style="background: var(--elevated); color: var(--text-3); border: 1px solid var(--hairline);">
+              <i data-lucide="circle-dashed" style="width:12px;height:12px;"></i> Unrated
+            </span>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Scene notes &amp; observations</label>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Visual Peak">+ Visual Peak</button>
+            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Pacing Drag">+ Pacing Drag</button>
+            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Key Line">+ Key Line</button>
+          </div>
+          <textarea id="fieldNotes" rows="5" placeholder="Observations, standout moments, quotable lines…" class="w-full rounded-2xl px-4 py-3 text-[15px] leading-relaxed resize-none"></textarea>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" id="submitBtn" class="tap-btn w-full rounded-2xl py-4 text-[16px] font-semibold flex items-center justify-center gap-2" style="background: var(--accent); color: #000;">
+          <i data-lucide="check-circle-2" class="lucide-icon"></i>
+          <span id="submitBtnLabel">Submit &amp; Save Review</span>
+        </button>
+        <p id="formError" class="hidden text-[12px] text-center font-medium" style="color: var(--danger);"></p>
+      </form>
+    </section>
+
+    <!-- ===================== ARCHIVE ===================== -->
+    <section class="fade-in">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="text-[11px] font-semibold divider-label">PAST REVIEWS</span>
+        <div class="h-px flex-1" style="background: var(--hairline);"></div>
+      </div>
+
+      <div class="relative mb-3">
+        <i data-lucide="search" class="lucide-icon absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--text-3);"></i>
+        <input id="searchInput" type="text" placeholder="Search by title, director, venue, genre…" class="w-full rounded-2xl pl-11 pr-4 py-3 text-[15px]" />
+      </div>
+
+      <div id="ratingFilters" class="flex flex-wrap gap-2 mb-5">
+        <button data-filter="all" class="rating-filter chip tap-btn active text-[12px] font-medium px-3 py-1.5 rounded-full">All</button>
+        <button data-filter="high" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Excellent 8–10★</button>
+        <button data-filter="mid" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Average 5–7★</button>
+        <button data-filter="low" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Low &lt;5★</button>
+      </div>
+
+      <div id="archiveList" class="space-y-3"></div>
+
+      <div id="emptyState" class="hidden flex flex-col items-center justify-center text-center py-14 gap-2">
+        <i data-lucide="film" style="width:30px;height:30px;color: var(--text-3);"></i>
+        <p class="text-[14px] font-medium" style="color: var(--text-2);">No reviews yet</p>
+        <p class="text-[12px] max-w-[220px]" style="color: var(--text-3);">Submit your first screening review above and it will appear here in real time.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed left-1/2 bottom-6 z-50 px-4 py-3 rounded-2xl text-[13px] font-medium glass toast-enter" style="color: var(--text-1);"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+      onSnapshot, query, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    /* ---------------- Firebase init ---------------- */
+    const firebaseConfig = {
+      apiKey: "AIzaSyDjoNG2TBpFV6HC-4HsNyiunmwNOfQ1Mlo",
+      authDomain: "press-44c1c.firebaseapp.com",
+      projectId: "press-44c1c",
+      storageBucket: "press-44c1c.firebasestorage.app",
+      messagingSenderId: "1015064722378",
+      appId: "1:1015064722378:web:aba84783703a514cef2d33",
+      measurementId: "G-VPSZZ3D8S5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+    const reviewsCol = collection(db, "filmReviews");
+
+    /* ---------------- State ---------------- */
+    const CATEGORIES = [
+      { key: "acting", label: "Acting", icon: "user" },
+      { key: "directing", label: "Directing", icon: "clapperboard" },
+      { key: "cinematography", label: "Cinematography", icon: "camera" },
+      { key: "screenplay", label: "Screenplay", icon: "file-text" },
+      { key: "sound", label: "Sound / Score", icon: "music" },
+      { key: "pacing", label: "Pacing", icon: "gauge" },
+    ];
+
+    let currentUser = null;
+    let scores = { acting: 0, directing: 0, cinematography: 0, screenplay: 0, sound: 0, pacing: 0 };
+    let allReviews = [];
+    let searchTerm = "";
+    let ratingFilter = "all";
+    let editingId = null;
+
+    /* ---------------- Utility ---------------- */
+    function icons() { if (window.lucide) window.lucide.createIcons(); }
+
+    function showToast(msg, tone) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.style.borderColor = tone === "error" ? "var(--danger)" : "var(--hairline)";
+      t.classList.remove("hidden");
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => t.classList.add("hidden"), 2600);
+    }
+
+    function computeOverall() {
+      const rated = CATEGORIES.map(c => scores[c.key]).filter(v => v > 0);
+      if (rated.length === 0) return null;
+      const sum = rated.reduce((a, b) => a + b, 0);
+      return Math.round((sum / rated.length) * 10) / 10;
+    }
+
+    function getVerdict(avg) {
+      if (avg === null) return { label: "Unrated", color: "var(--text-3)", icon: "circle-dashed" };
+      if (avg >= 8.5) return { label: "Must-See", color: "var(--success)", icon: "sparkles" };
+      if (avg >= 6.5) return { label: "Solid", color: "var(--accent)", icon: "thumbs-up" };
+      if (avg >= 4.5) return { label: "Mixed", color: "var(--warning)", icon: "shuffle" };
+      return { label: "Flawed", color: "var(--danger)", icon: "thumbs-down" };
+    }
+
+    function tierOf(avg) {
+      if (avg === null) return "unrated";
+      if (avg >= 8) return "high";
+      if (avg >= 5) return "mid";
+      return "low";
+    }
+
+    function starMarkup(avg, size) {
+      const s = size || 15;
+      const val = avg || 0;
+      let html = "";
+      for (let i = 1; i <= 5; i++) {
+        const filled = val >= i * 2;
+        const half = !filled && val >= i * 2 - 1;
+        html += `<i data-lucide="${filled ? "star" : half ? "star-half" : "star"}" style="width:${s}px;height:${s}px;color:${filled || half ? "var(--accent)" : "var(--text-3)"};fill:${filled ? "var(--accent)" : "none"};"></i>`;
+      }
+      return html;
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return "Just now";
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60) return "Just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    /* ---------------- Theater dimmer ---------------- */
+    const dimmerToggle = document.getElementById("dimmerToggle");
+    const dimmerTrack = document.getElementById("dimmerTrack");
+    function setStealth(on) {
+      document.documentElement.classList.toggle("stealth", on);
+      dimmerTrack.classList.toggle("on", on);
+      dimmerToggle.setAttribute("aria-pressed", String(on));
+      localStorage.setItem("reelnotes-stealth", on ? "1" : "0");
+    }
+    dimmerToggle.addEventListener("click", () => {
+      setStealth(!document.documentElement.classList.contains("stealth"));
+    });
+    setStealth(localStorage.getItem("reelnotes-stealth") === "1");
+
+    /* ---------------- Auth ---------------- */
+    const authArea = document.getElementById("authArea");
+    function renderAuth() {
+      if (currentUser) {
+        authArea.innerHTML = `
+          <button id="userMenuBtn" class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full chip tap-btn">
+            <img src="${currentUser.photoURL || ""}" alt="" class="w-7 h-7 rounded-full object-cover" style="background: var(--elevated);" />
+            <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+          </button>`;
+        document.getElementById("userMenuBtn").addEventListener("click", async () => {
+          try { await signOut(auth); showToast("Signed out"); }
+          catch (e) { showToast("Sign-out failed", "error"); }
+        });
+      } else {
+        authArea.innerHTML = `
+          <button id="signInBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold tap-btn" style="background: var(--accent); color:#000;">
+            <i data-lucide="log-in" style="width:14px;height:14px;"></i> Sign in
+          </button>`;
+        document.getElementById("signInBtn").addEventListener("click", async () => {
+          try { await signInWithPopup(auth, provider); }
+          catch (e) { showToast("Google sign-in failed", "error"); }
+        });
+      }
+      icons();
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      renderAuth();
+      renderArchive();
+    });
+
+    /* ---------------- Score pickers ---------------- */
+    const scoreCategoriesEl = document.getElementById("scoreCategories");
+    function renderScorePickers() {
+      scoreCategoriesEl.innerHTML = CATEGORIES.map(cat => {
+        const chips = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+          `<button type="button" class="score-chip ${scores[cat.key] === n ? "active" : ""}" data-cat="${cat.key}" data-val="${n}">${n}</button>`
+        ).join("");
+        return `
+          <div>
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <i data-lucide="${cat.icon}" style="width:14px;height:14px;color: var(--text-2);"></i>
+              <span class="text-[13px] font-medium" style="color: var(--text-1);">${cat.label}</span>
+              <span class="ml-auto text-[12px] tabular-nums font-semibold" style="color: ${scores[cat.key] ? "var(--accent)" : "var(--text-3)"};">${scores[cat.key] || "–"}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5">${chips}</div>
+          </div>`;
+      }).join("");
+      icons();
+    }
+
+    scoreCategoriesEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".score-chip");
+      if (!btn) return;
+      const cat = btn.dataset.cat, val = parseInt(btn.dataset.val, 10);
+      scores[cat] = scores[cat] === val ? 0 : val; // tap again to clear
+      renderScorePickers();
+      updateSummary();
+    });
+
+    /* ---------------- Live summary ---------------- */
+    function updateSummary() {
+      const avg = computeOverall();
+      const verdict = getVerdict(avg);
+      document.getElementById("overallScore").textContent = avg === null ? "–" : avg.toFixed(1);
+      document.getElementById("starRow").innerHTML = starMarkup(avg, 17);
+      const badge = document.getElementById("verdictBadge");
+      badge.style.color = verdict.color;
+      badge.style.borderColor = verdict.color === "var(--text-3)" ? "var(--hairline)" : verdict.color;
+      badge.style.background = verdict.color === "var(--text-3)" ? "var(--elevated)" : "color-mix(in srgb, " + verdict.color + " 16%, transparent)";
+      badge.innerHTML = `<i data-lucide="${verdict.icon}" style="width:12px;height:12px;"></i> ${verdict.label}`;
+      icons();
+    }
+
+    /* ---------------- Quick note tags ---------------- */
+    document.querySelectorAll(".quick-tag").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const notesField = document.getElementById("fieldNotes");
+        const time = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
+        const prefix = notesField.value && !notesField.value.endsWith("\n") ? "\n" : "";
+        notesField.value += `${prefix}[${time}] ${btn.dataset.tag} — `;
+        notesField.focus();
+        notesField.setSelectionRange(notesField.value.length, notesField.value.length);
+      });
+    });
+
+    /* ---------------- Form reset / edit ---------------- */
+    const form = document.getElementById("reviewForm");
+    const cancelEditBtn = document.getElementById("cancelEditBtn");
+    const formHeading = document.getElementById("formHeading");
+    const submitBtnLabel = document.getElementById("submitBtnLabel");
+    const formError = document.getElementById("formError");
+
+    function resetForm() {
+      form.reset();
+      scores = { acting: 0, directing: 0, cinematography: 0, screenplay: 0, sound: 0, pacing: 0 };
+      editingId = null;
+      formHeading.textContent = "New Screening Review";
+      submitBtnLabel.textContent = "Submit & Save Review";
+      cancelEditBtn.classList.add("hidden");
+      formError.classList.add("hidden");
+      renderScorePickers();
+      updateSummary();
+    }
+
+    cancelEditBtn.addEventListener("click", resetForm);
+
+    function loadEntryIntoForm(entry) {
+      editingId = entry.id;
+      document.getElementById("fieldTitle").value = entry.title || "";
+      document.getElementById("fieldDirector").value = entry.director || "";
+      document.getElementById("fieldVenue").value = entry.venue || "";
+      document.getElementById("fieldGenre").value = entry.genre || "";
+      document.getElementById("fieldRuntime").value = entry.runtime || "";
+      document.getElementById("fieldNotes").value = entry.notes || "";
+      scores = { ...scores, ...(entry.scores || {}) };
+      renderScorePickers();
+      updateSummary();
+      formHeading.textContent = "Edit Review";
+      submitBtnLabel.textContent = "Save Changes";
+      cancelEditBtn.classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    /* ---------------- Submit ---------------- */
+    const submitBtn = document.getElementById("submitBtn");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      formError.classList.add("hidden");
+
+      const title = document.getElementById("fieldTitle").value.trim();
+      if (!title) {
+        formError.textContent = "Title is required.";
+        formError.classList.remove("hidden");
+        return;
+      }
+      if (!currentUser) {
+        formError.textContent = "Sign in with Google to save reviews.";
+        formError.classList.remove("hidden");
+        return;
+      }
+
+      const overall = computeOverall();
+      const verdict = getVerdict(overall).label;
+
+      const payload = {
+        title,
+        director: document.getElementById("fieldDirector").value.trim(),
+        venue: document.getElementById("fieldVenue").value.trim(),
+        genre: document.getElementById("fieldGenre").value.trim(),
+        runtime: document.getElementById("fieldRuntime").value ? Number(document.getElementById("fieldRuntime").value) : null,
+        scores: { ...scores },
+        overall,
+        verdict,
+        notes: document.getElementById("fieldNotes").value,
+        authorUid: currentUser.uid,
+        authorName: currentUser.displayName || "Anonymous",
+        authorPhoto: currentUser.photoURL || "",
+      };
+
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = "0.6";
+
+      try {
+        if (editingId) {
+          await updateDoc(doc(db, "filmReviews", editingId), payload);
+          showToast("Review updated");
+        } else {
+          payload.createdAt = serverTimestamp();
+          await addDoc(reviewsCol, payload);
+          showToast("Review saved");
+        }
+        resetForm();
+      } catch (err) {
+        formError.textContent = "Couldn't save: " + (err.message || "unknown error");
+        formError.classList.remove("hidden");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = "1";
+      }
+    });
+
+    /* ---------------- Archive: search & filter ---------------- */
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      searchTerm = e.target.value.trim().toLowerCase();
+      renderArchive();
+    });
+
+    document.getElementById("ratingFilters").addEventListener("click", (e) => {
+      const btn = e.target.closest(".rating-filter");
+      if (!btn) return;
+      ratingFilter = btn.dataset.filter;
+      document.querySelectorAll(".rating-filter").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderArchive();
+    });
+
+    /* ---------------- Firestore live archive ---------------- */
+    const archiveList = document.getElementById("archiveList");
+    const emptyState = document.getElementById("emptyState");
+
+    onSnapshot(query(reviewsCol, orderBy("createdAt", "desc")), (snap) => {
+      allReviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderArchive();
+    }, (err) => {
+      showToast("Live sync error: " + err.message, "error");
+    });
+
+    function renderArchive() {
+      let items = allReviews.filter(r => {
+        if (searchTerm) {
+          const hay = [r.title, r.director, r.venue, r.genre].join(" ").toLowerCase();
+          if (!hay.includes(searchTerm)) return false;
+        }
+        if (ratingFilter !== "all" && tierOf(r.overall) !== ratingFilter) return false;
+        return true;
+      });
+
+      if (items.length === 0) {
+        archiveList.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        return;
+      }
+      emptyState.classList.add("hidden");
+
+      archiveList.innerHTML = items.map(r => {
+        const verdict = getVerdict(r.overall);
+        const isOwner = currentUser && r.authorUid === currentUser.uid;
+        const catRows = CATEGORIES.map(c => {
+          const v = (r.scores && r.scores[c.key]) || 0;
+          return `<div class="flex items-center gap-1.5">
+            <span class="text-[10px] w-[76px] truncate" style="color: var(--text-3);">${c.label}</span>
+            <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: var(--elevated);">
+              <div class="h-full rounded-full" style="width:${v * 10}%; background: var(--accent);"></div>
+            </div>
+            <span class="text-[10px] w-4 text-right tabular-nums" style="color: var(--text-2);">${v || "–"}</span>
+          </div>`;
+        }).join("");
+
+        return `
+        <article class="card-solid rounded-3xl p-4 fade-in" style="border-radius: var(--radius-lg);">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="min-w-0">
+              <h3 class="text-[15px] font-semibold truncate" style="color: var(--text-1);">${escapeHtml(r.title)}</h3>
+              <p class="text-[12px] truncate" style="color: var(--text-3);">
+                ${[r.director, r.venue, r.genre].filter(Boolean).map(escapeHtml).join(" · ") || "No metadata"}
+                ${r.runtime ? ` · ${r.runtime} min` : ""}
+              </p>
+            </div>
+            <div class="flex flex-col items-end shrink-0">
+              <span class="text-[20px] font-bold tabular-nums leading-none" style="color: var(--text-1);">${r.overall !== null && r.overall !== undefined ? r.overall.toFixed(1) : "–"}</span>
+              <span class="text-[10px]" style="color: var(--text-3);">/ 10</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 mb-3">
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="color:${verdict.color}; border:1px solid ${verdict.color}; background: color-mix(in srgb, ${verdict.color} 14%, transparent);">
+              <i data-lucide="${verdict.icon}" style="width:11px;height:11px;"></i>${verdict.label}
+            </span>
+            <span class="flex items-center gap-1 text-[11px]" style="color: var(--text-3);">
+              <i data-lucide="clock" style="width:11px;height:11px;"></i>${timeAgo(r.createdAt)}
+            </span>
+            ${r.authorName ? `<span class="flex items-center gap-1 text-[11px] truncate" style="color: var(--text-3);"><i data-lucide="user-round" style="width:11px;height:11px;"></i>${escapeHtml(r.authorName)}</span>` : ""}
+          </div>
+
+          <div class="space-y-1 mb-3">${catRows}</div>
+
+          ${r.notes ? `<p class="text-[13px] leading-relaxed whitespace-pre-wrap rounded-xl p-3 mb-3" style="background: var(--elevated); color: var(--text-2);">${escapeHtml(r.notes)}</p>` : ""}
+
+          ${isOwner ? `
+          <div class="flex items-center gap-2 pt-1">
+            <button class="edit-btn chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1" data-id="${r.id}">
+              <i data-lucide="pencil" style="width:12px;height:12px;"></i>Edit
+            </button>
+            <button class="delete-btn chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1" data-id="${r.id}" style="color: var(--danger);">
+              <i data-lucide="trash-2" style="width:12px;height:12px;"></i>Delete
+            </button>
+          </div>` : ""}
+        </article>`;
+      }).join("");
+
+      icons();
+
+      archiveList.querySelectorAll(".edit-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const entry = allReviews.find(r => r.id === btn.dataset.id);
+          if (entry) loadEntryIntoForm(entry);
+        });
+      });
+      archiveList.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this review? This can't be undone.")) return;
+          try {
+            await deleteDoc(doc(db, "filmReviews", btn.dataset.id));
+            showToast("Review deleted");
+          } catch (err) {
+            showToast("Delete failed: " + err.message, "error");
+          }
+        });
+      });
+    }
+
+    /* ---------------- Init ---------------- */
+    renderScorePickers();
+    updateSummary();
+    renderAuth();
+    icons();
+  </script>
+</body>
+</html>
