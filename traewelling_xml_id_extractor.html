@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traewelling XML ID Extractor</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #172033;
+      --muted: #667085;
+      --border: #d9e0ea;
+      --accent: #2563eb;
+      --ok: #15803d;
+      --error: #dc2626;
+      --wait: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 28px 18px 50px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(20, 40, 80, .06);
+    }
+    h1 { margin: 0 0 8px; font-size: 1.65rem; }
+    .intro { color: var(--muted); margin: 0 0 22px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+    input[type=file] {
+      flex: 1; min-width: 240px; padding: 11px;
+      border: 1px solid var(--border); border-radius: 10px; background: #fff;
+    }
+    button, .download {
+      border: 0; border-radius: 10px; padding: 11px 16px;
+      font-weight: 700; cursor: pointer; text-decoration: none;
+    }
+    button { background: var(--accent); color: white; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .download { display: none; background: var(--ok); color: white; }
+    #summary { margin-top: 22px; font-weight: 700; }
+    .progress {
+      height: 10px; background: #e8edf5; border-radius: 999px;
+      overflow: hidden; margin: 10px 0 18px;
+    }
+    #progressBar {
+      height: 100%; width: 0; background: var(--accent);
+      transition: width .25s ease;
+    }
+    #stations { display: grid; gap: 9px; }
+    .station {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 12px; background: #fff;
+    }
+    .icon { width: 28px; text-align: center; font-size: 1.05rem; }
+    .station-main { flex: 1; min-width: 0; }
+    .station-name { font-weight: 700; }
+    .station-info { color: var(--muted); font-size: .9rem; margin-top: 2px; }
+    .status { font-weight: 700; font-size: .9rem; white-space: nowrap; }
+    .done .status { color: var(--ok); }
+    .error .status { color: var(--error); }
+    .pending .status { color: var(--wait); }
+    .pending .icon { animation: pulse 1.2s infinite; }
+    @keyframes pulse {
+      0%,100% { opacity: .45; transform: scale(.9); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+    #errors {
+      display: none; margin-top: 18px; padding: 14px;
+      border: 1px solid #fecaca; background: #fff1f2;
+      border-radius: 12px;
+    }
+    #errors h3 { margin: 0 0 8px; color: var(--error); }
+    .error-item { margin: 8px 0; font-size: .9rem; }
+    code { word-break: break-word; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Traewelling XML ID Extractor</h1>
+    <p class="intro">
+      XML-Datei auswählen. Jede Station wird automatisch erkannt und nacheinander bei der
+      Traewelling-API abgefragt. Bereits bearbeitete Stationen zeigen ihren Namen und ihre ID.
+    </p>
+
+    <div class="controls">
+      <input type="file" id="xmlInput" accept=".xml,text/xml">
+      <button id="processBtn" onclick="processXML()">XML verarbeiten</button>
+      <a id="downloadBtn" class="download" download="stationen_mit_ids.xml">XML herunterladen</a>
+    </div>
+
+    <div id="summary">Noch keine Datei verarbeitet.</div>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div id="stations"></div>
+    <div id="errors">
+      <h3>Fehlerprotokoll</h3>
+      <div id="errorList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function addError(station, message, details = "") {
+    const box = document.getElementById("errors");
+    const list = document.getElementById("errorList");
+    box.style.display = "block";
+
+    const item = document.createElement("div");
+    item.className = "error-item";
+    item.innerHTML =
+      "<strong>" + escapeHtml(station) + ":</strong> " +
+      escapeHtml(message) +
+      (details ? "<br><code>" + escapeHtml(details) + "</code>" : "");
+    list.appendChild(item);
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, c => ({
+      "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+    }[c]));
+  }
+
+  function setStationState(index, state, info = "") {
+    const el = document.getElementById("station-" + index);
+    if (!el) return;
+
+    el.className = "station " + state;
+    const status = el.querySelector(".status");
+    const icon = el.querySelector(".icon");
+
+    if (state === "pending") {
+      icon.textContent = "⏳";
+      status.textContent = "Wird abgefragt…";
+    } else if (state === "done") {
+      icon.textContent = "✓";
+      status.textContent = "Abgefragt";
+    } else {
+      icon.textContent = "!";
+      status.textContent = "Fehler";
+    }
+
+    el.querySelector(".station-info").textContent = info;
+  }
+
+  async function processXML() {
+    const input = document.getElementById("xmlInput");
+    const btn = document.getElementById("processBtn");
+    const download = document.getElementById("downloadBtn");
+    const summary = document.getElementById("summary");
+    const stationsBox = document.getElementById("stations");
+    const errorsBox = document.getElementById("errors");
+    const errorList = document.getElementById("errorList");
+    const progress = document.getElementById("progressBar");
+
+    download.style.display = "none";
+    errorsBox.style.display = "none";
+    errorList.innerHTML = "";
+    stationsBox.innerHTML = "";
+    progress.style.width = "0%";
+
+    if (!input.files.length) {
+      addError("Datei", "Keine XML-Datei ausgewählt.");
+      summary.textContent = "Bitte zuerst eine XML-Datei auswählen.";
+      return;
+    }
+
+    btn.disabled = true;
+
+    try {
+      summary.textContent = "Lese XML-Datei…";
+      const file = input.files[0];
+      const xmlText = await file.text();
+
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+      const parserError = xmlDoc.querySelector("parsererror");
+      if (parserError) {
+        throw new Error("Die XML-Datei ist ungültig oder konnte nicht geparst werden: " +
+                        parserError.textContent.trim());
+      }
+
+      const nameNodes = Array.from(xmlDoc.getElementsByTagName("name"));
+      if (!nameNodes.length) {
+        throw new Error("Keine <name>-Elemente in der XML-Datei gefunden.");
+      }
+
+      // Stationen sofort vollständig auflisten.
+      nameNodes.forEach((nameNode, i) => {
+        const stationName = nameNode.textContent.trim();
+        const row = document.createElement("div");
+        row.id = "station-" + i;
+        row.className = "station pending";
+        row.innerHTML = `
+          <div class="icon">⏳</div>
+          <div class="station-main">
+            <div class="station-name">${escapeHtml(i + 1 + ". " + stationName)}</div>
+            <div class="station-info">Noch nicht abgefragt</div>
+          </div>
+          <div class="status">Wartet…</div>
+        `;
+        stationsBox.appendChild(row);
+      });
+
+      summary.textContent = `${nameNodes.length} Stationen gefunden. Abfrage wird gestartet…`;
+
+      let success = 0;
+      let failed = 0;
+
+      for (let i = 0; i < nameNodes.length; i++) {
+        const nameNode = nameNodes[i];
+        const stationName = nameNode.textContent.trim();
+        const parentNode = nameNode.parentNode;
+
+        setStationState(i, "pending", "API-Abfrage läuft…");
+        summary.textContent = `Station ${i + 1}/${nameNodes.length}: ${stationName}`;
+        progress.style.width = ((i / nameNodes.length) * 100) + "%";
+
+        try {
+          const url = `https://traewelling.de/api/v1/trains/station?name=${encodeURIComponent(stationName)}`;
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status} ${response.statusText || ""}`.trim());
+          }
+
+          const data = await response.json();
+
+          if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("API lieferte keine passende Station.");
+          }
+
+          const station = data[0];
+          if (station.id === undefined || station.id === null) {
+            throw new Error("API-Antwort enthält keine ID.");
+          }
+
+          // Vorhandene ID entfernen, damit keine doppelten <id>-Tags entstehen.
+          const existingIds = Array.from(parentNode.children)
+            .filter(el => el.tagName.toLowerCase() === "id");
+          existingIds.forEach(el => parentNode.removeChild(el));
+
+          const idNode = xmlDoc.createElement("id");
+          idNode.textContent = String(station.id);
+          parentNode.appendChild(idNode);
+
+          success++;
+          setStationState(i, "done", `ID: ${station.id}`);
+        } catch (err) {
+          failed++;
+          const message = err instanceof Error ? err.message : String(err);
+          setStationState(i, "error", `Fehler: ${message}`);
+          addError(stationName, message);
+          console.error(`Fehler bei ${stationName}:`, err);
+        }
+
+        progress.style.width = (((i + 1) / nameNodes.length) * 100) + "%";
+
+        // Pause zwischen den API-Anfragen.
+        if (i < nameNodes.length - 1) await sleep(300);
+      }
+
+      const serializer = new XMLSerializer();
+      const newXmlText = serializer.serializeToString(xmlDoc);
+      const blob = new Blob([newXmlText], { type: "application/xml;charset=utf-8" });
+
+      if (window.__xmlUrl) URL.revokeObjectURL(window.__xmlUrl);
+      window.__xmlUrl = URL.createObjectURL(blob);
+
+      download.href = window.__xmlUrl;
+      download.style.display = "inline-block";
+
+      summary.textContent =
+        `Fertig: ${success} erfolgreich, ${failed} mit Fehlern, ${nameNodes.length} insgesamt.`;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      summary.textContent = "Verarbeitung abgebrochen.";
+      addError("XML-Verarbeitung", message);
+      console.error("XML-Verarbeitungsfehler:", err);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
