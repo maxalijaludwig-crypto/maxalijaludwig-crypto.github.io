@@ -1,759 +1,1455 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="color-scheme" content="dark" />
-<title>Reel Notes — Press Screening Companion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Presse-Assistent</title>
+<meta name="description" content="Intelligenter Presse-Assistent für Journalisten – Sprachaufnahme, KI-Transkription, Übersetzung und Zusammenfassung für Pressekonferenzen." />
+<meta name="theme-color" content="#000000" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%99%EF%B8%8F%3C/text%3E%3C/svg%3E" />
 
+<!--
+  SETUP-HINWEISE (nicht Teil der Laufzeit-UI):
+  1. In der Firebase Console: Authentication → Sign-in-Methode → "Google" UND "Anonym" aktivieren.
+     Die GitHub-Pages-Domain (z. B. dein-name.github.io) unter "Autorisierte Domains" eintragen.
+  2. Firestore-Datenbank anlegen (Produktionsmodus) und folgende Regeln setzen:
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+         match /sessions/{sessionId} {
+           allow read, write: if request.auth != null && request.auth.uid == uid;
+         }
+       }
+
+  PIPELINE (komplett clientseitig, zwei externe APIs):
+  1. TRANSKRIPTION — Groq (Whisper Large v3). Jede:r Nutzer:in hinterlegt einen eigenen,
+     kostenlosen Groq-API-Schlüssel (console.groq.com/keys). Ersetzt die frühere, unzuverlässige
+     browser-/geräteseitige Web-Speech-API vollständig — Groq transkribiert das aufgenommene
+     Audio direkt in der Originalsprache (z. B. Bosnisch/Kroatisch/Serbisch).
+  2. ÜBERSETZUNG + ZUSAMMENFASSUNG — Gemini 3.5 Flash (Ersatz für das eingestellte Gemini 1.5
+     Flash). Übersetzt das Original-Transkript vollständig ins Deutsche UND erstellt daraus in
+     einem Aufruf Titel, Zusammenfassung, Schlagworte und 10 Fragen. (Ein separater
+     Übersetzungsdienst — SimplyTranslate AI — wurde entfernt, da dessen API in der Praxis
+     wiederholt mit "Failed to fetch" fehlschlug, obwohl deren Dokumentation Browser-CORS
+     verspricht.)
+
+  KOMPLETT KOSTENLOS: Kein Firebase Storage (seit Februar 2026 nur noch im kostenpflichtigen
+  Blaze-Tarif verfügbar). Auth + Firestore laufen auf dem kostenlosen Spark-Tarif. Audio bleibt
+  nur lokal im Browser-Tab (abspielbar/herunterladbar solange der Tab offen ist).
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        fontFamily: {
-          sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'system-ui', 'sans-serif'],
-        },
-      },
-    },
-  };
+  tailwind.config = { darkMode: 'class' };
 </script>
-<script src="https://unpkg.com/[email protected]"></script>
 
 <style>
-  :root {
-    --bg-app: #0b0b0d;
-    --bg-app-2: #111113;
-    --surface: rgba(30, 30, 33, 0.68);
-    --surface-solid: #19191b;
-    --elevated: #232326;
-    --hairline: rgba(255, 255, 255, 0.09);
-    --text-1: #f5f5f7;
-    --text-2: #9a9aa1;
-    --text-3: #5c5c60;
-    --accent: #0a84ff;
-    --accent-soft: rgba(10, 132, 255, 0.16);
-    --success: #30d158;
-    --warning: #ff9f0a;
-    --danger: #ff453a;
-    --safelight: #ff2d20;
-    --safelight-soft: rgba(255, 45, 32, 0.14);
-    --radius-lg: 22px;
-    --radius-md: 16px;
+  :root{
+    color-scheme: light;
+    --bg:#F5F5F7; --bg-elevated:#FFFFFF; --card:rgba(255,255,255,0.70);
+    --border:rgba(0,0,0,0.08); --text:#1D1D1F; --text-secondary:#6E6E73;
+    --accent:#007AFF; --accent-2:#5AC8FA; --record:#FF3B30; --mint:#30D158;
+    --shadow:0 8px 30px rgba(0,0,0,0.08);
+  }
+  html.dark{
     color-scheme: dark;
+    --bg:#000000; --bg-elevated:#1C1C1E; --card:rgba(28,28,30,0.65);
+    --border:rgba(255,255,255,0.09); --text:#F5F5F7; --text-secondary:#98989D;
+    --accent:#0A84FF; --accent-2:#64D2FF; --record:#FF453A; --mint:#32D74B;
+    --shadow:0 8px 30px rgba(0,0,0,0.55);
   }
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .4s ease, color .4s ease;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .glass-card{
+    background:var(--card); border:1px solid var(--border);
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    box-shadow:var(--shadow);
+  }
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px;}
 
-  html.stealth {
-    --bg-app: #000000;
-    --bg-app-2: #000000;
-    --surface: rgba(8, 8, 8, 0.9);
-    --surface-solid: #030303;
-    --elevated: #0a0a0a;
-    --hairline: rgba(255, 45, 32, 0.14);
-    --text-1: #c7c7c7;
-    --text-2: #6b6b6b;
-    --text-3: #3d3d3d;
-    --accent: var(--safelight);
-    --accent-soft: var(--safelight-soft);
-  }
+  @keyframes fadeInDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+  .animate-fade-in{animation:fadeInDown .25s ease;}
 
-  * { -webkit-tap-highlight-color: transparent; }
+  @keyframes pulseRing{0%{transform:scale(.85);opacity:.55;}100%{transform:scale(1.7);opacity:0;}}
+  .pulse-ring{animation:pulseRing 1.8s cubic-bezier(.4,0,.6,1) infinite;}
 
-  html, body {
-    background: var(--bg-app);
-    color: var(--text-1);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    transition: background-color 0.35s ease, color 0.35s ease;
-  }
+  .eq-bars{display:flex;align-items:flex-end;gap:4px;height:72px;}
+  .eq-bar{width:5px;min-height:6%;background:linear-gradient(to top,var(--accent),var(--accent-2));border-radius:6px;height:8%;transition:height .09s ease-out;}
 
-  body {
-    background: radial-gradient(circle at 50% -10%, var(--bg-app-2), var(--bg-app) 55%);
-    min-height: 100dvh;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+  textarea, input, select{color:var(--text) !important; caret-color:var(--accent);}
+  textarea, input, select{background-color:transparent;}
+  ::placeholder{color:var(--text-secondary);opacity:.8;}
 
-  ::-webkit-scrollbar { width: 0px; height: 0px; }
-
-  .glass {
-    background: var(--surface);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    border: 1px solid var(--hairline);
-  }
-
-  .card-solid {
-    background: var(--surface-solid);
-    border: 1px solid var(--hairline);
-  }
-
-  .chip {
-    background: var(--elevated);
-    border: 1px solid var(--hairline);
-    color: var(--text-2);
-    transition: all 0.15s ease;
-  }
-  .chip:active { transform: scale(0.94); }
-  .chip.active {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .score-chip {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: var(--elevated);
-    border: 1px solid var(--hairline);
-    color: var(--text-2);
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    font-size: 13px;
-    transition: all 0.12s ease;
-  }
-  .score-chip:active { transform: scale(0.9); }
-  .score-chip.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #000;
-  }
-  html.stealth .score-chip.active { color: #1a0000; }
-
-  .tap-btn { transition: transform 0.12s ease, opacity 0.12s ease; }
-  .tap-btn:active { transform: scale(0.96); opacity: 0.85; }
-
-  .fade-in { animation: fadeIn 0.28s ease both; }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .toast-enter { animation: toastIn 0.25s ease both; }
-  @keyframes toastIn {
-    from { opacity: 0; transform: translate(-50%, 12px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-
-  input::placeholder, textarea::placeholder { color: var(--text-3); }
-
-  input[type="text"], input[type="number"], textarea, select {
-    background: var(--elevated);
-    border: 1px solid var(--hairline);
-    color: var(--text-1);
-  }
-  input:focus, textarea:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-
-  .switch-track {
-    width: 50px; height: 30px; border-radius: 999px;
-    background: var(--elevated);
-    border: 1px solid var(--hairline);
-    position: relative;
-    transition: background 0.2s ease;
-  }
-  .switch-track.on { background: var(--accent); border-color: var(--accent); }
-  .switch-knob {
-    position: absolute; top: 2px; left: 2px;
-    width: 24px; height: 24px; border-radius: 999px;
-    background: #fff;
-    transition: transform 0.2s cubic-bezier(.4,1.4,.6,1);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-  }
-  .switch-track.on .switch-knob { transform: translateX(20px); }
-
-  .divider-label {
-    color: var(--text-3);
-    letter-spacing: 0.08em;
-  }
-
-  .lucide-icon { width: 18px; height: 18px; stroke-width: 2; }
-
-  .pulse-dot {
-    width: 7px; height: 7px; border-radius: 999px; background: var(--success);
-    box-shadow: 0 0 0 0 rgba(48,209,88,0.5);
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(48,209,88,0.45); }
-    70% { box-shadow: 0 0 0 7px rgba(48,209,88,0); }
-    100% { box-shadow: 0 0 0 0 rgba(48,209,88,0); }
-  }
+  details > summary{list-style:none;}
+  details > summary::-webkit-details-marker{display:none;}
+  details[open] summary .chev{transform:rotate(180deg);}
 </style>
 </head>
+<body>
+<script>
+  /* Dependency-free watchdog: if the module script below never finishes starting
+     (e.g. this file was opened via file:// instead of a real webserver, which
+     blocks ES module imports, or the Firebase/CDN scripts failed to load),
+     show a visible diagnosis instead of a silent blank screen. */
+  window.__paModuleStarted = false;
+  window.__paModuleReady = false;
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      if (window.__paModuleReady) return;
+      var reason = !window.__paModuleStarted
+        ? 'Die App-Skripte konnten nicht geladen werden. Das passiert meist, wenn diese Datei direkt per Doppelklick (file://) statt über einen Webserver geöffnet wurde — moderne ES-Module benötigen http/https.\n\nBitte über GitHub Pages öffnen, oder lokal z. B. mit "python3 -m http.server" starten und über http://localhost:… aufrufen.'
+        : "Die App hat mit dem Start begonnen, ist aber nicht fertig geworden. Bitte die Browser-Konsole (F12 → Konsole) für Details prüfen und die Seite neu laden.";
+      var el = document.createElement("div");
+      el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:#F5F5F7;color:#1D1D1F;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;text-align:center;z-index:99999;white-space:pre-line;';
+      el.innerHTML = '<div style="max-width:440px;"><div style="font-size:17px;font-weight:600;margin-bottom:10px;">Presse-Assistent konnte nicht starten</div><div style="font-size:14px;line-height:1.6;color:#6E6E73;">' + reason.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</div></div>";
+      document.body.appendChild(el);
+    }, 2500);
+  });
+</script>
 
-<body class="font-sans">
+<div id="app" class="min-h-screen">
 
-  <!-- ===================== HEADER ===================== -->
-  <header class="sticky top-0 z-40 glass">
-    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background: var(--accent-soft); color: var(--accent);">
-          <i data-lucide="clapperboard" class="lucide-icon"></i>
-        </div>
-        <div class="min-w-0">
-          <h1 class="text-[15px] font-semibold leading-tight truncate" style="color: var(--text-1);">Reel Notes</h1>
-          <p class="text-[11px] leading-tight truncate" style="color: var(--text-3);">Press screening companion</p>
-        </div>
+  <!-- LOGIN VIEW -->
+  <section id="view-login" class="hidden min-h-screen flex items-center justify-center px-6">
+    <div class="w-full max-w-sm text-center">
+      <div class="mx-auto mb-6 h-16 w-16 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] flex items-center justify-center shadow-xl text-white">
+        <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>
       </div>
+      <h1 class="text-3xl font-semibold tracking-tight mb-2">Presse-Assistent</h1>
+      <p class="text-[var(--text-secondary)] mb-8 text-[15px] leading-relaxed">Aufnahme, Transkription (Groq) und KI-Übersetzung & Zusammenfassung (Gemini) für Pressekonferenzen.</p>
+      <button id="btn-google-signin" class="w-full flex items-center justify-center gap-3 glass-card rounded-2xl py-3.5 font-medium active:scale-[0.98] transition">
+        <svg class="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.1 8.1 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.9 1.1 8.1 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.3 0 10.1-2 13.7-5.4l-6.3-5.3C29.3 35 26.8 36 24 36c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.3 5.3C39.5 37 44 31.1 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+        Mit Google anmelden
+      </button>
+      <button id="btn-anon-signin" class="w-full mt-3 rounded-2xl border border-[var(--border)] py-3.5 text-sm font-medium text-[var(--text-secondary)] active:scale-[0.98] transition">
+        Ohne Konto fortfahren
+      </button>
+      <p class="text-xs text-[var(--text-secondary)] mt-4 leading-relaxed">Anonyme Nutzung: Deine Sitzungen sind nur an dieses Gerät/diesen Browser gebunden und gehen verloren, wenn du die Browserdaten löschst oder das Gerät wechselst.</p>
+    </div>
+  </section>
 
-      <div class="flex items-center gap-2 shrink-0">
-        <!-- Theater dimmer -->
-        <button id="dimmerToggle" class="flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-full chip tap-btn" aria-pressed="false" aria-label="Toggle theater dimmer stealth mode">
-          <i data-lucide="drama" class="lucide-icon" style="width:15px;height:15px;"></i>
-          <span class="switch-track" id="dimmerTrack"><span class="switch-knob"></span></span>
-        </button>
+  <!-- API KEYS MODAL -->
+  <div id="modal-apikey" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm overflow-y-auto py-8">
+    <div class="w-full max-w-sm glass-card rounded-3xl p-6 shadow-2xl animate-fade-in">
+      <h3 class="text-lg font-semibold mb-1">API-Schlüssel</h3>
+      <p class="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">Beide Schlüssel sind kostenlos erhältlich und werden lokal auf diesem Gerät sowie in deinem Nutzerkonto gespeichert.</p>
 
-        <!-- Auth -->
-        <div id="authArea"></div>
+      <label class="block text-xs font-medium mb-1.5 text-[var(--text-secondary)] uppercase tracking-wide">Groq API-Schlüssel (Transkription)</label>
+      <input id="input-apikey-groq" type="password" autocomplete="off" placeholder="gsk_…" class="w-full rounded-2xl bg-[var(--bg)]/60 border border-[var(--border)] px-4 py-3 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40" />
+      <p class="text-xs text-[var(--text-secondary)] mb-4">Kostenlos unter console.groq.com/keys</p>
+
+      <label class="block text-xs font-medium mb-1.5 text-[var(--text-secondary)] uppercase tracking-wide">Gemini API-Schlüssel (Zusammenfassung)</label>
+      <input id="input-apikey-gemini" type="password" autocomplete="off" placeholder="AIza…" class="w-full rounded-2xl bg-[var(--bg)]/60 border border-[var(--border)] px-4 py-3 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40" />
+      <p class="text-xs text-[var(--text-secondary)] mb-5">Kostenlos in Google AI Studio</p>
+
+      <p class="text-xs text-[var(--text-secondary)] mb-5 leading-relaxed">Gemini übernimmt sowohl die Übersetzung ins Deutsche als auch die Zusammenfassung — dafür ist kein weiterer Dienst nötig.</p>
+
+      <div class="flex gap-2">
+        <button id="btn-cancel-apikey" class="hidden flex-1 rounded-full border border-[var(--border)] py-2.5 text-sm font-medium">Abbrechen</button>
+        <button id="btn-save-apikey" class="flex-1 rounded-full bg-[var(--accent)] text-white py-2.5 text-sm font-medium active:scale-[0.98] transition">Speichern</button>
       </div>
     </div>
-  </header>
+  </div>
 
-  <main class="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-8">
-
-    <!-- ===================== NEW REVIEW FORM ===================== -->
-    <section class="card-solid rounded-3xl p-4 sm:p-5 fade-in" style="border-radius: var(--radius-lg);">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-[17px] font-semibold" style="color: var(--text-1);" id="formHeading">New Screening Review</h2>
-        <button id="cancelEditBtn" class="hidden text-[13px] font-medium px-2.5 py-1 rounded-full chip tap-btn" style="color: var(--danger);">Cancel edit</button>
+  <!-- ERROR MODAL -->
+  <div id="modal-error" class="hidden fixed inset-0 z-[70] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm">
+    <div class="w-full max-w-sm glass-card rounded-3xl p-6 shadow-2xl animate-fade-in">
+      <div class="h-11 w-11 rounded-2xl bg-[var(--record)]/10 text-[var(--record)] flex items-center justify-center mb-4">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a1.5 1.5 0 0 0 1.3 2.3h17.8a1.5 1.5 0 0 0 1.3-2.3L13.7 3.9a1.5 1.5 0 0 0-2.6 0Z"></path></svg>
       </div>
+      <h3 id="error-modal-title" class="text-lg font-semibold mb-1.5">Fehler</h3>
+      <p id="error-modal-message" class="text-sm text-[var(--text-secondary)] mb-5 leading-relaxed whitespace-pre-line"></p>
+      <button id="btn-close-error" class="w-full rounded-full bg-[var(--accent)] text-white py-2.5 text-sm font-medium active:scale-[0.98] transition">Verstanden</button>
+    </div>
+  </div>
 
-      <form id="reviewForm" class="space-y-5">
-
-        <!-- Film info -->
-        <div class="space-y-3">
-          <div>
-            <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Title <span style="color: var(--danger);">*</span></label>
-            <input id="fieldTitle" type="text" required placeholder="e.g. The Last Reel" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Director</label>
-              <input id="fieldDirector" type="text" placeholder="Director" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
-            </div>
-            <div>
-              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Festival / Venue</label>
-              <input id="fieldVenue" type="text" placeholder="e.g. TIFF, Screen 3" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Genre</label>
-              <input id="fieldGenre" type="text" placeholder="e.g. Drama" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
-            </div>
-            <div>
-              <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Runtime (min)</label>
-              <input id="fieldRuntime" type="number" min="0" placeholder="e.g. 118" class="w-full rounded-2xl px-4 py-3 text-[15px]" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Category scoring -->
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[12px] font-medium" style="color: var(--text-2);">Category scoring</span>
-            <span class="text-[11px]" style="color: var(--text-3);">Tap to rate 1–10</span>
-          </div>
-          <div id="scoreCategories" class="space-y-3"></div>
-        </div>
-
-        <!-- Auto rating summary -->
-        <div class="rounded-2xl p-4 flex items-center gap-4" style="background: var(--elevated); border: 1px solid var(--hairline);">
-          <div class="flex flex-col items-center justify-center shrink-0">
-            <span id="overallScore" class="text-[34px] font-bold leading-none tabular-nums" style="color: var(--text-1);">–</span>
-            <span class="text-[10px] mt-0.5" style="color: var(--text-3);">/ 10</span>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5 mb-1.5" id="starRow"></div>
-            <span id="verdictBadge" class="inline-flex items-center gap-1.5 text-[12px] font-semibold px-2.5 py-1 rounded-full" style="background: var(--elevated); color: var(--text-3); border: 1px solid var(--hairline);">
-              <i data-lucide="circle-dashed" style="width:12px;height:12px;"></i> Unrated
-            </span>
-          </div>
-        </div>
-
-        <!-- Notes -->
-        <div>
-          <label class="block text-[12px] font-medium mb-1.5" style="color: var(--text-2);">Scene notes &amp; observations</label>
-          <div class="flex flex-wrap gap-2 mb-2">
-            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Visual Peak">+ Visual Peak</button>
-            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Pacing Drag">+ Pacing Drag</button>
-            <button type="button" class="quick-tag chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full" data-tag="Key Line">+ Key Line</button>
-          </div>
-          <textarea id="fieldNotes" rows="5" placeholder="Observations, standout moments, quotable lines…" class="w-full rounded-2xl px-4 py-3 text-[15px] leading-relaxed resize-none"></textarea>
-        </div>
-
-        <!-- Submit -->
-        <button type="submit" id="submitBtn" class="tap-btn w-full rounded-2xl py-4 text-[16px] font-semibold flex items-center justify-center gap-2" style="background: var(--accent); color: #000;">
-          <i data-lucide="check-circle-2" class="lucide-icon"></i>
-          <span id="submitBtnLabel">Submit &amp; Save Review</span>
+  <!-- ANSWER RECORDING MODAL (short recording tied to a single question) -->
+  <div id="modal-answer-recording" class="hidden fixed inset-0 z-[65] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm">
+    <div class="w-full max-w-sm glass-card rounded-3xl p-6 shadow-2xl animate-fade-in flex flex-col items-center">
+      <p id="answer-modal-question" class="text-sm text-[var(--text-secondary)] mb-4 text-center leading-relaxed"></p>
+      <div class="relative mb-4 h-16 w-16 flex items-center justify-center">
+        <span class="absolute inset-0 rounded-full bg-[var(--record)]/40 pulse-ring"></span>
+        <button id="btn-stop-answer-recording" class="relative h-16 w-16 rounded-full bg-[var(--record)] text-white flex items-center justify-center shadow-xl active:scale-95 transition">
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"></rect></svg>
         </button>
-        <p id="formError" class="hidden text-[12px] text-center font-medium" style="color: var(--danger);"></p>
-      </form>
-    </section>
+      </div>
+      <div id="answer-rec-timer" class="text-lg font-semibold tabular-nums mb-2">00:00</div>
+      <div class="eq-bars-answer eq-bars mb-2" style="height:40px;"></div>
+      <p class="text-xs text-[var(--text-secondary)]">Antwort wird aufgenommen — zum Beenden tippen.</p>
+    </div>
+  </div>
 
-    <!-- ===================== ARCHIVE ===================== -->
-    <section class="fade-in">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="text-[11px] font-semibold divider-label">PAST REVIEWS</span>
-        <div class="h-px flex-1" style="background: var(--hairline);"></div>
+  <!-- MAIN APP SHELL -->
+  <div id="view-app" class="hidden">
+    <header class="sticky top-0 z-30 backdrop-blur-xl bg-[var(--bg)]/70 border-b border-[var(--border)]">
+      <div class="max-w-7xl mx-auto px-4 h-16 flex items-center gap-2">
+        <button id="btn-sidebar-toggle" class="md:hidden p-2 -ml-2 rounded-xl hover:bg-[var(--bg-elevated)]">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
+        </button>
+        <div class="flex items-center gap-2 font-semibold tracking-tight shrink-0">
+          <span class="h-8 w-8 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] flex items-center justify-center text-white">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>
+          </span>
+          <span class="hidden sm:inline">Presse-Assistent</span>
+        </div>
+        <div class="flex-1 hidden md:flex items-center max-w-md ml-4">
+          <div class="relative w-full">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+            </span>
+            <input id="input-search-desktop" placeholder="Sitzungen durchsuchen…" class="w-full rounded-full bg-[var(--bg-elevated)] border border-[var(--border)] pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40" />
+          </div>
+        </div>
+        <div class="flex-1"></div>
+        <button id="btn-new-session" class="hidden sm:flex items-center gap-1.5 rounded-full bg-[var(--accent)] text-white text-sm font-medium px-4 py-2 active:scale-95 transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Neu
+        </button>
+        <div class="relative">
+          <button id="btn-usage-toggle" class="p-2.5 rounded-xl hover:bg-[var(--bg-elevated)] transition text-[var(--text-secondary)]" title="API-Nutzung">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"></path><path d="M12 12l4-4"></path><circle cx="12" cy="12" r="1"></circle></svg>
+          </button>
+          <div id="usage-panel" class="hidden absolute right-0 mt-2 w-72 rounded-2xl glass-card shadow-xl p-4 z-40 animate-fade-in"></div>
+        </div>
+        <button id="btn-theme-toggle" class="p-2.5 rounded-xl hover:bg-[var(--bg-elevated)] transition"></button>
+        <div class="relative">
+          <button id="btn-user-menu" class="h-9 w-9 rounded-full overflow-hidden ring-1 ring-[var(--border)] shrink-0 bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)]">
+            <img id="user-avatar" src="" alt="Profil" class="hidden h-full w-full object-cover" />
+            <svg id="user-avatar-fallback" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>
+          </button>
+          <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-56 rounded-2xl glass-card shadow-xl p-2 z-40 animate-fade-in">
+            <p id="user-email" class="px-3 py-2 text-xs text-[var(--text-secondary)] truncate"></p>
+            <button id="btn-open-settings" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg)]/60 text-sm flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 13a7.97 7.97 0 0 0 0-2l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L15 3h-4l-.3 2.5a8 8 0 0 0-1.7 1l-2.4-1-2 3.5L6.6 11a7.97 7.97 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1L11 21h4l.3-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5Z"></path></svg>
+              Einstellungen
+            </button>
+            <button id="btn-signout" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--bg)]/60 text-sm flex items-center gap-2 text-[var(--record)]">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              Abmelden
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto flex relative">
+      <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-72 shrink-0 -translate-x-full md:translate-x-0 transition-transform duration-300 bg-[var(--bg)] md:bg-transparent border-r border-[var(--border)] md:border-none pt-20 md:pt-6 px-4 h-screen md:h-[calc(100vh-4rem)] overflow-y-auto">
+        <button id="btn-new-session-mobile" class="sm:hidden w-full mb-4 flex items-center justify-center gap-1.5 rounded-full bg-[var(--accent)] text-white text-sm font-medium px-4 py-2.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Neue Aufnahme
+        </button>
+        <div class="relative mb-4 md:hidden">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+          </span>
+          <input id="input-search-mobile" placeholder="Suchen…" class="w-full rounded-full bg-[var(--bg-elevated)] border border-[var(--border)] pl-10 pr-4 py-2 text-sm focus:outline-none" />
+        </div>
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)] px-2 mb-2">Sitzungen</h3>
+        <div id="session-list" class="space-y-1 pb-10"></div>
+      </aside>
+      <div id="sidebar-overlay" class="hidden fixed inset-0 bg-black/30 z-30 md:hidden"></div>
+
+      <main id="content" class="flex-1 min-w-0 min-h-[calc(100vh-4rem)]"></main>
+    </div>
+
+    <div id="questions-panel" class="hidden fixed bottom-4 right-4 z-40"></div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 items-center pointer-events-none w-full px-4"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc,
+  query, orderBy, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+/* Kein Firebase-Storage-Import — Audio bleibt lokal im Browser (siehe Hinweis oben), damit
+   die App komplett auf dem kostenlosen Spark-Tarif läuft (kein Blaze/Zahlungsmethode nötig). */
+
+window.__paModuleStarted = true; /* proves the module script itself was reached and imports resolved */
+
+try { /* whole app body — any startup error is caught below and shown visibly instead of a blank screen */
+
+/* ---------- Firebase ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDjoNG2TBpFV6HC-4HsNyiunmwNOfQ1Mlo",
+  authDomain: "press-44c1c.firebaseapp.com",
+  projectId: "press-44c1c",
+  storageBucket: "press-44c1c.firebasestorage.app",
+  messagingSenderId: "1015064722378",
+  appId: "1:1015064722378:web:aba84783703a514cef2d33",
+  measurementId: "G-VPSZZ3D8S5"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+/* Gemini 1.5 Flash was retired by Google; gemini-3.5-flash is the current GA replacement. */
+const GEMINI_MODEL = "gemini-3.5-flash";
+const GROQ_TRANSCRIBE_MODEL = "whisper-large-v3";
+
+/* ---------- Helpers ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+function escapeHtml(str = "") {
+  return String(str).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+function formatDate(ts) {
+  if (!ts) return "gerade eben";
+  const d = typeof ts.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (isNaN(d.getTime())) return "gerade eben";
+  return d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+const ICONS = {
+  mic: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>`,
+  stop: `<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"></rect></svg>`,
+  sun: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><line x1="12" y1="1.5" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22.5"></line><line x1="4.2" y1="4.2" x2="6" y2="6"></line><line x1="18" y1="18" x2="19.8" y2="19.8"></line><line x1="1.5" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="22.5" y2="12"></line><line x1="4.2" y1="19.8" x2="6" y2="18"></line><line x1="18" y1="6" x2="19.8" y2="4.2"></line></svg>`,
+  moon: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"></path></svg>`,
+  download: `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>`,
+  chevronDown: `<svg class="w-4 h-4 chev transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+  chat: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`,
+  micSmall: `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>`,
+  refresh: `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+};
+
+/* ---------- State ---------- */
+const CHECKPOINT_INTERVAL_MS = 180000; /* 3 Minuten */
+const state = {
+  user: null, geminiKey: "", groqKey: "", sessions: [], filteredSessions: [], searchTerm: "",
+  currentSessionId: null, isRecording: false, isAppendMode: false, preInfoDraft: "",
+  mediaRecorder: null, audioChunks: [], stream: null,
+  audioCtx: null, analyser: null, rafId: null,
+  recordStartTime: null, timerInterval: null,
+  unsubscribeSessions: null, questionsPanelMinimized: false,
+  localAudioBlobs: {}, /* { [sessionId]: [{url, filename}] } — nur im aktuellen Browser-Tab, nicht in der Cloud */
+  recordingLang: localStorage.getItem("pa-recording-lang") || "bs",
+  /* Laufende Aufnahme: automatischer 3-Minuten-Zwischenstand */
+  checkpointTimer: null, isCheckpointRunning: false,
+  draftSessionId: null, /* Firestore-Doc-ID der laufenden/wartenden Sitzung, sobald einmal gespeichert */
+  draftSession: null,   /* { baseOriginal, baseGerman, preInfo, title, summary, tags, questions } */
+  /* API-Nutzung aus echten Response-Headern (nur angezeigt, wenn die API sie tatsächlich sendet) */
+  apiUsage: { groq: { requests: null, tokens: null }, gemini: { requests: null, tokens: null } },
+  questionsDisplayLang: "de",
+  answerTarget: null, /* { sessionId, qIndex } während einer Antwort-Aufnahme */
+};
+
+/* ---------- Theme ---------- */
+function initTheme() {
+  const saved = localStorage.getItem("pa-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = saved ? saved === "dark" : prefersDark;
+  document.documentElement.classList.toggle("dark", dark);
+}
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle("dark");
+  localStorage.setItem("pa-theme", isDark ? "dark" : "light");
+  updateThemeIcon();
+}
+function updateThemeIcon() {
+  const btn = $("#btn-theme-toggle");
+  if (btn) btn.innerHTML = document.documentElement.classList.contains("dark") ? ICONS.sun : ICONS.moon;
+}
+
+/* ---------- Error modal (for critical/blocking errors, mirrors auth-style dialogs) ---------- */
+function showErrorModal(title, message) {
+  $("#error-modal-title").textContent = title;
+  $("#error-modal-message").textContent = message;
+  $("#modal-error").classList.remove("hidden");
+}
+function hideErrorModal() { $("#modal-error").classList.add("hidden"); }
+
+/* ---------- Toast ---------- */
+function toast(msg, type = "info") {
+  const container = $("#toast-container");
+  const div = document.createElement("div");
+  div.className = `pointer-events-auto max-w-sm text-sm text-white px-4 py-3 rounded-2xl shadow-xl animate-fade-in ${type === "error" ? "bg-[var(--record)]" : "bg-[var(--text)]"}`;
+  div.style.transition = "opacity .3s ease, transform .3s ease";
+  div.textContent = msg;
+  container.appendChild(div);
+  setTimeout(() => {
+    div.style.opacity = "0";
+    div.style.transform = "translateY(-8px)";
+    setTimeout(() => div.remove(), 300);
+  }, 3800);
+}
+
+/* ---------- API-Nutzung (aus echten Response-Headern, keine erfundenen Werte) ---------- */
+function parseUsageFromHeaders(headers) {
+  const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
+  const limitReq = num(headers.get("x-ratelimit-limit-requests"));
+  const remReq = num(headers.get("x-ratelimit-remaining-requests"));
+  const limitTok = num(headers.get("x-ratelimit-limit-tokens"));
+  const remTok = num(headers.get("x-ratelimit-remaining-tokens"));
+  if (limitReq === null && limitTok === null) return null; /* API sendet diese Header nicht — nichts anzeigen statt zu raten */
+  return {
+    requests: limitReq !== null ? { limit: limitReq, remaining: remReq } : null,
+    tokens: limitTok !== null ? { limit: limitTok, remaining: remTok } : null,
+  };
+}
+function updateApiUsage(api, res) {
+  const usage = parseUsageFromHeaders(res.headers);
+  if (usage) { state.apiUsage[api] = usage; renderApiUsagePanel(); }
+}
+function usageBarHtml(label, data) {
+  if (!data) return `<div class="mb-3"><div class="text-xs text-[var(--text-secondary)]">${escapeHtml(label)}: keine Nutzungsdaten von der API verfügbar</div></div>`;
+  const remaining = data.remaining ?? data.limit;
+  const pct = data.limit ? Math.max(0, Math.min(100, (remaining / data.limit) * 100)) : 0;
+  return `<div class="mb-3">
+    <div class="flex justify-between text-xs text-[var(--text-secondary)] mb-1"><span>${escapeHtml(label)}</span><span>${remaining} / ${data.limit}</span></div>
+    <div class="h-1.5 rounded-full bg-[var(--bg)] overflow-hidden"><div class="h-full bg-[var(--accent)]" style="width:${pct}%"></div></div>
+  </div>`;
+}
+function renderApiUsagePanel() {
+  const panel = $("#usage-panel");
+  if (!panel) return;
+  panel.innerHTML = `
+    <h4 class="text-sm font-semibold mb-3">API-Nutzung</h4>
+    <p class="text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wide">Groq</p>
+    ${usageBarHtml("Anfragen", state.apiUsage.groq.requests)}
+    ${usageBarHtml("Tokens", state.apiUsage.groq.tokens)}
+    <p class="text-xs font-medium text-[var(--text-secondary)] mb-2 mt-3 uppercase tracking-wide">Gemini</p>
+    ${usageBarHtml("Anfragen", state.apiUsage.gemini.requests)}
+    ${usageBarHtml("Tokens", state.apiUsage.gemini.tokens)}
+    <p class="text-[11px] text-[var(--text-secondary)] mt-3 leading-relaxed">Werte stammen direkt aus den Antwort-Headern der jeweiligen API und aktualisieren sich nach jedem Aufruf. Sendet eine API diese Header nicht, wird das ehrlich als „keine Daten" angezeigt statt geraten.</p>`;
+}
+
+/* ---------- Auth ---------- */
+async function signIn() {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { showErrorModal("Anmeldung fehlgeschlagen", e.message || String(e)); }
+}
+async function signInAnonymous() {
+  try { await signInAnonymously(auth); }
+  catch (e) { showErrorModal("Anonyme Anmeldung fehlgeschlagen", e.message || String(e)); }
+}
+async function logOut() {
+  cleanupRecording();
+  if (state.unsubscribeSessions) state.unsubscribeSessions();
+  $("#user-dropdown").classList.add("hidden");
+  await signOut(auth);
+}
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    state.user = user;
+    await loadUserProfile();
+    subscribeSessions();
+    showAppShell();
+  } else {
+    state.user = null;
+    state.sessions = [];
+    state.currentSessionId = null;
+    showLogin();
+  }
+});
+
+async function loadUserProfile() {
+  const localGemini = localStorage.getItem("pa-gemini-key-" + state.user.uid);
+  const localGroq = localStorage.getItem("pa-groq-key-" + state.user.uid);
+  const userRef = doc(db, "users", state.user.uid);
+  let remoteGemini = "", remoteGroq = "";
+  try {
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      remoteGemini = snap.data().geminiApiKey || "";
+      remoteGroq = snap.data().groqApiKey || "";
+    }
+  } catch (e) { /* fall back to local keys below */ }
+
+  state.geminiKey = remoteGemini || localGemini || "";
+  state.groqKey = remoteGroq || localGroq || "";
+  if (state.geminiKey) localStorage.setItem("pa-gemini-key-" + state.user.uid, state.geminiKey);
+  if (state.groqKey) localStorage.setItem("pa-groq-key-" + state.user.uid, state.groqKey);
+
+  if (!state.geminiKey || !state.groqKey) {
+    openApiKeyModal(true);
+  } else if ((!remoteGemini || !remoteGroq) && (localGemini || localGroq)) {
+    /* keys existed locally but not yet synced to Firestore — sync silently */
+    try { await setDoc(userRef, { geminiApiKey: state.geminiKey, groqApiKey: state.groqKey, email: state.user.email || "" }, { merge: true }); }
+    catch (e) { /* non-fatal */ }
+  }
+}
+async function saveApiKeys(geminiVal, groqVal) {
+  state.geminiKey = geminiVal.trim();
+  state.groqKey = groqVal.trim();
+  localStorage.setItem("pa-gemini-key-" + state.user.uid, state.geminiKey);
+  localStorage.setItem("pa-groq-key-" + state.user.uid, state.groqKey);
+  try {
+    await setDoc(doc(db, "users", state.user.uid), { geminiApiKey: state.geminiKey, groqApiKey: state.groqKey, email: state.user.email || "" }, { merge: true });
+  } catch (e) { /* local keys still work even if Firestore write fails */ }
+  closeApiKeyModal();
+  toast("API-Schlüssel gespeichert.");
+}
+
+/* ---------- Sessions (Firestore) ---------- */
+function subscribeSessions() {
+  const q = query(collection(db, "users", state.user.uid, "sessions"), orderBy("createdAt", "desc"));
+  state.unsubscribeSessions = onSnapshot(q, (snap) => {
+    state.sessions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    applySearchFilter();
+    renderSessionList();
+    if (state.currentSessionId) {
+      const cur = state.sessions.find((s) => s.id === state.currentSessionId);
+      if (cur) { renderSessionDetail(cur); }
+    }
+  }, (err) => toast("Fehler beim Laden der Sitzungen: " + err.message, "error"));
+}
+function applySearchFilter() {
+  const term = state.searchTerm.trim().toLowerCase();
+  state.filteredSessions = !term ? state.sessions : state.sessions.filter((s) =>
+    (s.title || "").toLowerCase().includes(term) ||
+    (s.summary || "").toLowerCase().includes(term) ||
+    (s.transcript || "").toLowerCase().includes(term) ||
+    (s.transcriptOriginal || "").toLowerCase().includes(term) ||
+    (s.tags || []).some((t) => t.toLowerCase().includes(term))
+  );
+}
+function onSearchInput(e) {
+  state.searchTerm = e.target.value;
+  const other = e.target.id === "input-search-desktop" ? $("#input-search-mobile") : $("#input-search-desktop");
+  if (other) other.value = e.target.value;
+  applySearchFilter();
+  renderSessionList();
+}
+
+/* ---------- Views ---------- */
+function showLogin() {
+  $("#view-login").classList.remove("hidden");
+  $("#view-app").classList.add("hidden");
+}
+function showAppShell() {
+  $("#view-login").classList.add("hidden");
+  $("#view-app").classList.remove("hidden");
+  const avatarImg = $("#user-avatar");
+  const avatarFallback = $("#user-avatar-fallback");
+  if (state.user.photoURL) {
+    avatarImg.src = state.user.photoURL;
+    avatarImg.classList.remove("hidden");
+    avatarFallback.classList.add("hidden");
+  } else {
+    avatarImg.classList.add("hidden");
+    avatarFallback.classList.remove("hidden");
+  }
+  $("#user-email").textContent = state.user.isAnonymous ? "Anonym angemeldet" : (state.user.email || "");
+  renderStartView();
+}
+function openSidebarMobile() { $("#sidebar").classList.remove("-translate-x-full"); $("#sidebar-overlay").classList.remove("hidden"); }
+function closeSidebarMobile() { $("#sidebar").classList.add("-translate-x-full"); $("#sidebar-overlay").classList.add("hidden"); }
+
+function openApiKeyModal(isFirstTime) {
+  $("#modal-apikey").classList.remove("hidden");
+  $("#modal-apikey").dataset.firstTime = isFirstTime ? "1" : "0";
+  $("#input-apikey-gemini").value = state.geminiKey || "";
+  $("#input-apikey-groq").value = state.groqKey || "";
+  $("#btn-cancel-apikey").classList.toggle("hidden", !!isFirstTime);
+}
+function closeApiKeyModal() { $("#modal-apikey").classList.add("hidden"); }
+async function onSaveApiKeyClick() {
+  const geminiVal = $("#input-apikey-gemini").value.trim();
+  const groqVal = $("#input-apikey-groq").value.trim();
+  if (!geminiVal || !groqVal) { toast("Bitte beide API-Schlüssel eingeben.", "error"); return; }
+  await saveApiKeys(geminiVal, groqVal);
+}
+
+/* ---------- Sidebar / session list ---------- */
+function renderSessionList() {
+  const list = $("#session-list");
+  if (!list) return;
+  if (!state.filteredSessions.length) {
+    list.innerHTML = `<p class="text-sm text-[var(--text-secondary)] px-3 py-6 text-center">Keine Sitzungen gefunden.</p>`;
+    return;
+  }
+  list.innerHTML = state.filteredSessions.map((s) => `
+    <button data-id="${s.id}" class="session-item w-full text-left px-3 py-3 rounded-2xl hover:bg-[var(--bg-elevated)] transition ${s.id === state.currentSessionId ? "bg-[var(--accent)]/10" : ""}">
+      <div class="text-sm font-medium truncate">${escapeHtml(s.title || "Unbenannt")}</div>
+      <div class="text-xs text-[var(--text-secondary)] truncate mt-0.5">${escapeHtml((s.summary || "").slice(0, 64))}</div>
+      <div class="text-[11px] text-[var(--text-secondary)] mt-1">${formatDate(s.createdAt)}</div>
+    </button>`).join("");
+  $$(".session-item", list).forEach((btn) => btn.addEventListener("click", () => openSession(btn.dataset.id)));
+}
+function openSession(id) {
+  if (state.isRecording) { toast("Bitte zuerst die Aufnahme stoppen.", "error"); return; }
+  state.currentSessionId = id;
+  const session = state.sessions.find((s) => s.id === id);
+  if (session) renderSessionDetail(session);
+  renderSessionList();
+  closeSidebarMobile();
+}
+
+/* ---------- Content: start view ---------- */
+function renderStartView() {
+  state.currentSessionId = null;
+  hideQuestionsPanel();
+  renderSessionList();
+  $("#content").innerHTML = `
+    <div class="max-w-2xl mx-auto px-4 py-8 md:py-16">
+      <div class="text-center mb-8">
+        <div class="mx-auto mb-5 h-14 w-14 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)]">${ICONS.mic}</div>
+        <h2 class="text-2xl font-semibold tracking-tight mb-1">Neue Aufnahme</h2>
+        <p class="text-[var(--text-secondary)] text-sm">Kontext hinzufügen und Pressekonferenz aufnehmen</p>
+      </div>
+      <div class="glass-card rounded-3xl p-5 md:p-6 mb-6">
+        <label class="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Hintergrundinformationen (optional)</label>
+        <textarea id="input-preinfo" rows="5" placeholder="z. B. Thema, Teilnehmer, Anlass der Pressekonferenz…" class="w-full resize-none rounded-2xl bg-[var(--bg)]/60 border border-[var(--border)] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"></textarea>
+      </div>
+      <div class="glass-card rounded-3xl p-5 md:p-6 mb-6">
+        <label class="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Sprache der Aufnahme</label>
+        <select id="input-lang" class="w-full rounded-2xl bg-[var(--bg)]/60 border border-[var(--border)] px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40">
+          <option value="bs">Bosnisch</option>
+          <option value="hr">Kroatisch</option>
+          <option value="sr">Serbisch</option>
+          <option value="en">Englisch</option>
+          <option value="auto">Automatisch erkennen</option>
+        </select>
+        <p class="text-xs text-[var(--text-secondary)] mt-2 leading-relaxed">Wird an Groq (Whisper) als Hinweis übergeben und verbessert die Transkriptionsgenauigkeit.</p>
+      </div>
+      <button id="btn-start-recording" class="w-full flex items-center justify-center gap-2 rounded-full bg-[var(--record)] text-white font-medium py-4 shadow-lg shadow-[var(--record)]/30 active:scale-[0.98] transition">
+        ${ICONS.mic} Aufnahme starten
+      </button>
+      <p class="text-center text-xs text-[var(--text-secondary)] mt-4">Transkription: Groq · Übersetzung & Zusammenfassung: Gemini</p>
+    </div>`;
+  $("#input-lang").value = state.recordingLang;
+  $("#input-lang").addEventListener("change", (e) => {
+    state.recordingLang = e.target.value;
+    localStorage.setItem("pa-recording-lang", state.recordingLang);
+  });
+  $("#btn-start-recording").addEventListener("click", () => startRecording(false));
+}
+
+/* ---------- Content: recording view ---------- */
+function renderRecordingView() {
+  $("#content").innerHTML = `
+    <div class="max-w-2xl mx-auto px-4 py-8 md:py-16 flex flex-col items-center">
+      <div class="relative mb-8 mt-4 h-24 w-24 flex items-center justify-center">
+        <span class="absolute inset-0 rounded-full bg-[var(--record)]/40 pulse-ring"></span>
+        <span class="absolute inset-0 rounded-full bg-[var(--record)]/40 pulse-ring" style="animation-delay:0.9s"></span>
+        <button id="btn-stop-recording" class="relative h-24 w-24 rounded-full bg-[var(--record)] text-white flex items-center justify-center shadow-xl active:scale-95 transition">${ICONS.stop}</button>
+      </div>
+      <div id="rec-timer" class="text-2xl font-semibold tabular-nums mb-1">00:00</div>
+      <div class="text-sm text-[var(--text-secondary)] mb-6">${state.isAppendMode ? "Ergänzung wird aufgenommen …" : "Aufnahme läuft …"}</div>
+      <div class="eq-bars mb-8">${Array.from({ length: 32 }).map(() => '<div class="eq-bar"></div>').join("")}</div>
+      <button id="btn-generate-questions-live" class="hidden mb-4 flex items-center gap-2 rounded-full bg-[var(--bg-elevated)] border border-[var(--border)] text-sm font-medium px-5 py-2.5 active:scale-95 transition">${ICONS.chat} Fragen jetzt generieren</button>
+      <div class="glass-card rounded-3xl p-5 text-center">
+        <p id="checkpoint-status" class="text-sm text-[var(--text-secondary)] leading-relaxed">Alle 3 Minuten wird automatisch ein Zwischenstand transkribiert &amp; übersetzt gespeichert — die Aufnahme läuft dabei ohne Unterbrechung weiter.</p>
+      </div>
+    </div>`;
+  $("#btn-stop-recording").addEventListener("click", stopRecording);
+  $("#btn-generate-questions-live").addEventListener("click", generateQuestionsDuringRecording);
+  if (state.draftSession && (state.draftSession.questions || []).length) showGenerateQuestionsButton();
+}
+function updateCheckpointStatus(msg) {
+  const el = $("#checkpoint-status");
+  if (el) el.textContent = msg;
+}
+function showGenerateQuestionsButton() {
+  const btn = $("#btn-generate-questions-live");
+  if (btn) btn.classList.remove("hidden");
+}
+function startTimer(targetSel = "#rec-timer") {
+  state.timerInterval = setInterval(() => {
+    const secs = Math.floor((Date.now() - state.recordStartTime) / 1000);
+    const m = String(Math.floor(secs / 60)).padStart(2, "0");
+    const s = String(secs % 60).padStart(2, "0");
+    const el = $(targetSel);
+    if (el) el.textContent = `${m}:${s}`;
+  }, 500);
+}
+function stopTimer() { clearInterval(state.timerInterval); }
+
+/* ---------- Automatischer 3-Minuten-Zwischenstand während einer laufenden Aufnahme ----------
+   Nimmt bei jedem Zyklus die BISHERIGE Gesamtaufnahme (nicht nur das Delta) und transkribiert/
+   übersetzt sie neu. Das ist bei sehr langen Aufnahmen weniger effizient als ein inkrementeller
+   Ansatz, dafür aber deutlich zuverlässiger: jeder Schnappschuss ist garantiert eine gültige,
+   vollständige WebM-Datei (Browser-Aufnahmeteile lassen sich nur vom Anfang an sicher zu einer
+   gültigen Datei zusammensetzen). */
+function startCheckpointTimer() {
+  clearInterval(state.checkpointTimer);
+  state.checkpointTimer = setInterval(runCheckpoint, CHECKPOINT_INTERVAL_MS);
+}
+function stopCheckpointTimer() {
+  clearInterval(state.checkpointTimer);
+  state.checkpointTimer = null;
+}
+async function runCheckpoint() {
+  if (!state.isRecording || state.isCheckpointRunning || !state.audioChunks.length) return;
+  state.isCheckpointRunning = true;
+  updateCheckpointStatus("Automatischer Zwischenstand wird transkribiert & übersetzt …");
+  try {
+    const snapshotBlob = new Blob(state.audioChunks, { type: (state.mediaRecorder && state.mediaRecorder.mimeType) || "audio/webm" });
+    const original = await transcribeWithGroq(snapshotBlob, state.recordingLang);
+    if (original) {
+      const german = await translateOnlyWithGemini(original);
+      const base = state.draftSession || {};
+      const stamp = new Date().toLocaleString("de-DE");
+      const sep = base.baseOriginal ? `\n\n--- Ergänzung ${stamp} ---\n\n` : "";
+      base.transcriptOriginal = (base.baseOriginal || "") + sep + original;
+      base.transcript = (base.baseGerman || "") + (base.baseGerman ? sep : "") + (german || "");
+      state.draftSession = base;
+      await persistDraftSession();
+      updateCheckpointStatus(`Zwischenstand gespeichert (${Math.round(snapshotBlob.size / 1024)} KB) — Fragen können jetzt generiert werden.`);
+      showGenerateQuestionsButton();
+    }
+  } catch (e) {
+    updateCheckpointStatus("Automatischer Zwischenstand fehlgeschlagen — Aufnahme läuft normal weiter, nächster Versuch in 3 Minuten.");
+  } finally {
+    state.isCheckpointRunning = false;
+  }
+}
+async function persistDraftSession() {
+  if (!state.draftSession) return;
+  const d = state.draftSession;
+  const payload = {
+    preInfo: d.preInfo || "",
+    transcriptOriginal: d.transcriptOriginal || d.baseOriginal || "",
+    transcript: d.transcript || d.baseGerman || "",
+    summary: d.summary || "",
+    tags: d.tags || [],
+    questions: d.questions || [],
+    questionsEn: d.questionsEn || [],
+    status: "recording",
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (state.draftSessionId) {
+      await updateDoc(doc(db, "users", state.user.uid, "sessions", state.draftSessionId), payload);
+    } else {
+      payload.title = d.title || "Unbenannt (Aufnahme läuft)";
+      payload.createdAt = serverTimestamp();
+      const docRef = await addDoc(collection(db, "users", state.user.uid, "sessions"), payload);
+      state.draftSessionId = docRef.id;
+    }
+  } catch (e) { /* Autosave ist best-effort — die Aufnahme läuft trotzdem normal weiter */ }
+}
+async function generateQuestionsDuringRecording() {
+  if (!state.draftSession || !state.draftSession.transcriptOriginal) { toast("Noch kein Zwischenstand vorhanden.", "error"); return; }
+  toast("Fragen werden generiert …");
+  try {
+    const d = state.draftSession;
+    const prompt = buildPrompt({ preInfo: d.preInfo || "", transcript: d.transcriptOriginal, isAppend: !!d.baseOriginal, previousSummary: d.summary || "" });
+    const result = await callGeminiSummary(prompt);
+    d.transcript = result.transcriptDe || d.transcript;
+    d.title = result.title || d.title;
+    d.summary = result.summary || "";
+    d.tags = result.tags || [];
+    d.questions = (result.questions || []).slice(0, 10).map((q) => ({ text: q, checked: false }));
+    d.questionsEn = [];
+    await persistDraftSession();
+    showDraftQuestionsPanel();
+    toast("Fragen aktualisiert.");
+  } catch (e) {
+    showErrorModal("Fehler beim Generieren der Fragen", friendlyFetchError("Fragen generieren (Gemini)", e));
+  }
+}
+function showDraftQuestionsPanel() {
+  if (!state.draftSessionId || !state.draftSession || !(state.draftSession.questions || []).length) return;
+  showQuestionsPanel({
+    id: state.draftSessionId,
+    questions: state.draftSession.questions,
+    transcriptOriginal: state.draftSession.transcriptOriginal,
+    preInfo: state.draftSession.preInfo,
+    summary: state.draftSession.summary,
+    questionsEn: state.draftSession.questionsEn,
+  });
+}
+
+/* ---------- Content: processing view (multi-stage) ---------- */
+function renderProcessingView(stepLabel) {
+  $("#content").innerHTML = `
+    <div class="max-w-md mx-auto px-4 py-24 flex flex-col items-center text-center">
+      <div class="h-12 w-12 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin mb-5"></div>
+      <h3 id="processing-step" class="text-lg font-semibold mb-1">${escapeHtml(stepLabel)}</h3>
+      <p class="text-sm text-[var(--text-secondary)]">Bitte warten – dies kann je nach Länge der Aufnahme einige Sekunden dauern.</p>
+    </div>`;
+}
+function updateProcessingStep(stepLabel) {
+  const el = $("#processing-step");
+  if (el) el.textContent = stepLabel; else renderProcessingView(stepLabel);
+}
+
+/* ---------- Content: session detail ---------- */
+function renderSessionDetail(session) {
+  showQuestionsPanel(session);
+  const tagsHtml = (session.tags || []).map((t) => `<span class="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)]">${escapeHtml(t)}</span>`).join("");
+  const localClips = state.localAudioBlobs[session.id] || [];
+  const audioHtml = localClips.length
+    ? localClips.map((c, i) => `
+      <div class="flex items-center gap-3 rounded-2xl bg-[var(--bg)]/60 border border-[var(--border)] px-4 py-3">
+        <span class="text-xs text-[var(--text-secondary)] w-14 shrink-0">Clip ${i + 1}</span>
+        <audio controls preload="none" class="w-full h-9" src="${c.url}"></audio>
+        <a href="${c.url}" download="${escapeHtml(c.filename)}" class="shrink-0 p-2 rounded-xl hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)]" title="Herunterladen">${ICONS.download}</a>
+      </div>`).join("")
+    : `<p class="text-sm text-[var(--text-secondary)] leading-relaxed">Kein Audio in diesem Browser-Tab verfügbar. Audio wird aus Kostengründen nicht in der Cloud gespeichert, sondern ist nur während der Aufnahme-Sitzung abspielbar — bitte beim Aufnehmen direkt herunterladen, wenn du die Datei behalten möchtest.</p>`;
+
+  const isPending = session.status === "pending_ai";
+  const isDraftRecording = session.status === "recording";
+  const statusBannerHtml = isPending ? `
+    <div class="glass-card rounded-3xl p-5 md:p-6 mb-5 border-l-4 border-[var(--record)]">
+      <h3 class="text-sm font-semibold mb-1.5">KI-Verarbeitung ausstehend</h3>
+      <p class="text-sm text-[var(--text-secondary)] leading-relaxed mb-3">Das Transkript wurde gespeichert, aber die Übersetzung/Zusammenfassung ist fehlgeschlagen oder steht noch aus. Nichts ist verloren — mit einem Klick erneut an Gemini senden.</p>
+      <button id="btn-retry-ai" class="rounded-full bg-[var(--accent)] text-white text-sm font-medium px-5 py-2.5 active:scale-95 transition">Erneut an Gemini senden</button>
+    </div>` : "";
+  const recordingBannerHtml = isDraftRecording ? `
+    <div class="glass-card rounded-3xl p-5 md:p-6 mb-5 border-l-4 border-[var(--accent)]">
+      <p class="text-sm text-[var(--text-secondary)] leading-relaxed">Diese Sitzung wird gerade aufgenommen — der Zwischenstand wird alle 3 Minuten automatisch transkribiert &amp; übersetzt gespeichert.</p>
+    </div>` : "";
+
+  $("#content").innerHTML = `
+    <div class="max-w-3xl mx-auto px-4 py-6 md:py-10 pb-40">
+      <input id="input-title" value="${escapeHtml(session.title || "Unbenannt")}" class="w-full bg-transparent text-2xl md:text-3xl font-semibold tracking-tight mb-1 focus:outline-none border-b border-transparent focus:border-[var(--border)] pb-1" />
+      <p class="text-xs text-[var(--text-secondary)] mb-4">${formatDate(session.createdAt)}${session.updatedAt ? " · aktualisiert " + formatDate(session.updatedAt) : ""}</p>
+      <div class="flex flex-wrap gap-2 mb-6">${tagsHtml}</div>
+
+      ${statusBannerHtml}
+      ${recordingBannerHtml}
+
+      ${session.summary ? `<div class="glass-card rounded-3xl p-5 md:p-6 mb-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-3">Zusammenfassung</h3>
+        <div class="text-[15px] leading-relaxed whitespace-pre-line">${escapeHtml(session.summary)}</div>
+      </div>` : ""}
+
+      ${session.transcript ? `<details class="glass-card rounded-3xl p-5 md:p-6 mb-5">
+        <summary class="flex items-center justify-between text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)] cursor-pointer select-none">Transkript (Deutsch) ${ICONS.chevronDown}</summary>
+        <div class="text-[15px] leading-relaxed whitespace-pre-line mt-3 text-[var(--text-secondary)]">${escapeHtml(session.transcript)}</div>
+      </details>` : ""}
+
+      ${session.transcriptOriginal ? `<details class="glass-card rounded-3xl p-5 md:p-6 mb-5">
+        <summary class="flex items-center justify-between text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)] cursor-pointer select-none">Original-Transkript (Groq) ${ICONS.chevronDown}</summary>
+        <div class="text-[15px] leading-relaxed whitespace-pre-line mt-3 text-[var(--text-secondary)]">${escapeHtml(session.transcriptOriginal)}</div>
+      </details>` : ""}
+
+      ${session.preInfo ? `<details class="glass-card rounded-3xl p-5 md:p-6 mb-5">
+        <summary class="flex items-center justify-between text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)] cursor-pointer select-none">Hintergrundinformationen ${ICONS.chevronDown}</summary>
+        <div class="text-[15px] leading-relaxed whitespace-pre-line mt-3 text-[var(--text-secondary)]">${escapeHtml(session.preInfo)}</div>
+      </details>` : ""}
+
+      <div class="glass-card rounded-3xl p-5 md:p-6 mb-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-3">Audio</h3>
+        <div class="space-y-3">${audioHtml}</div>
       </div>
 
-      <div class="relative mb-3">
-        <i data-lucide="search" class="lucide-icon absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--text-3);"></i>
-        <input id="searchInput" type="text" placeholder="Search by title, director, venue, genre…" class="w-full rounded-2xl pl-11 pr-4 py-3 text-[15px]" />
+      <div class="flex flex-wrap gap-3">
+        <button id="btn-append" class="flex items-center gap-2 rounded-full bg-[var(--record)] text-white text-sm font-medium px-5 py-3 active:scale-95 transition">${ICONS.mic} Inhalt hinzufügen</button>
+        <button id="btn-export-txt" class="flex items-center gap-2 rounded-full bg-[var(--bg-elevated)] border border-[var(--border)] text-sm font-medium px-5 py-3 active:scale-95 transition">${ICONS.download} Als TXT herunterladen</button>
       </div>
+    </div>`;
 
-      <div id="ratingFilters" class="flex flex-wrap gap-2 mb-5">
-        <button data-filter="all" class="rating-filter chip tap-btn active text-[12px] font-medium px-3 py-1.5 rounded-full">All</button>
-        <button data-filter="high" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Excellent 8–10★</button>
-        <button data-filter="mid" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Average 5–7★</button>
-        <button data-filter="low" class="rating-filter chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full">Low &lt;5★</button>
+  $("#btn-append").addEventListener("click", () => startRecording(true));
+  $("#btn-export-txt").addEventListener("click", () => exportTxt(session));
+  $("#input-title").addEventListener("change", (e) => saveTitle(session.id, e.target.value));
+  const retryBtn = $("#btn-retry-ai");
+  if (retryBtn) retryBtn.addEventListener("click", () => retryAiSummary(session));
+}
+async function saveTitle(sessionId, value) {
+  const title = value.trim() || "Unbenannt";
+  try { await updateDoc(doc(db, "users", state.user.uid, "sessions", sessionId), { title, updatedAt: serverTimestamp() }); }
+  catch (e) { toast("Titel konnte nicht gespeichert werden.", "error"); }
+}
+function exportTxt(session) {
+  const lines = [
+    `Titel: ${session.title || "Unbenannt"}`,
+    `Datum: ${formatDate(session.createdAt)}`,
+    `Schlagworte: ${(session.tags || []).join(", ")}`,
+    "", "--- Hintergrundinformationen ---", session.preInfo || "(keine)",
+    "", "--- Zusammenfassung ---", session.summary || "",
+    "", "--- Transkript (Deutsch) ---", session.transcript || "",
+  ];
+  if (session.transcriptOriginal) lines.push("", "--- Original-Transkript (Groq) ---", session.transcriptOriginal);
+  lines.push("", "--- 10 Fragen ---", ...(session.questions || []).map((q, i) =>
+    `${i + 1}. [${q.checked ? "x" : " "}] ${q.text}${q.answerDe ? `\n   Antwort: ${q.answerDe}` : ""}`
+  ));
+  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(session.title || "Unbenannt").replace(/[^a-z0-9äöüß_-]+/gi, "_")}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Floating questions panel ---------- */
+function hideQuestionsPanel() { $("#questions-panel").classList.add("hidden"); }
+function showQuestionsPanel(session) {
+  if (!session.questions || !session.questions.length) { hideQuestionsPanel(); return; }
+  $("#questions-panel").classList.remove("hidden");
+  renderQuestionsPanel(session);
+}
+function renderQuestionsPanel(session) {
+  const panel = $("#questions-panel");
+  const minimized = state.questionsPanelMinimized;
+  const lang = state.questionsDisplayLang;
+  const hasEn = (session.questionsEn || []).length === (session.questions || []).length && (session.questionsEn || []).length > 0;
+  const displayTexts = (lang === "en" && hasEn) ? session.questionsEn : (session.questions || []).map((q) => q.text);
+  const total = (session.questions || []).length;
+  const answered = (session.questions || []).filter((q) => q.checked).length;
+  panel.innerHTML = `
+    <div class="glass-card rounded-3xl shadow-2xl overflow-hidden ${minimized ? "w-16 h-16" : "w-[calc(100vw-2rem)] sm:w-96 max-h-[70vh]"} transition-all duration-300 flex flex-col">
+      <button id="btn-toggle-questions" class="flex items-center ${minimized ? "justify-center h-16 w-16" : "justify-between px-4 pt-4"} shrink-0">
+        ${minimized
+          ? `<span class="relative text-[var(--accent)]">${ICONS.chat}<span class="absolute -top-1 -right-1 bg-[var(--accent)] text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">${total}</span></span>`
+          : `<span class="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]">${ICONS.chat}<span class="text-[var(--text)]">Fragen</span><span class="text-[var(--text-secondary)] font-normal">${answered}/${total}</span></span><span class="text-[var(--text-secondary)]">${ICONS.chevronDown}</span>`}
+      </button>
+      ${minimized ? "" : `
+      <div class="flex items-center gap-2 px-4 pb-2 pt-1">
+        <button id="btn-regen-questions" class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-full bg-[var(--bg)]/60 border border-[var(--border)] hover:bg-[var(--bg-elevated)]" title="Neue Fragen generieren">${ICONS.refresh} Neu</button>
+        <button id="btn-toggle-lang" class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-full bg-[var(--bg)]/60 border border-[var(--border)] hover:bg-[var(--bg-elevated)]">${lang === "en" ? "Auf Deutsch" : "In English"}</button>
       </div>
-
-      <div id="archiveList" class="space-y-3"></div>
-
-      <div id="emptyState" class="hidden flex flex-col items-center justify-center text-center py-14 gap-2">
-        <i data-lucide="film" style="width:30px;height:30px;color: var(--text-3);"></i>
-        <p class="text-[14px] font-medium" style="color: var(--text-2);">No reviews yet</p>
-        <p class="text-[12px] max-w-[220px]" style="color: var(--text-3);">Submit your first screening review above and it will appear here in real time.</p>
-      </div>
-    </section>
-  </main>
-
-  <!-- Toast -->
-  <div id="toast" class="hidden fixed left-1/2 bottom-6 z-50 px-4 py-3 rounded-2xl text-[13px] font-medium glass toast-enter" style="color: var(--text-1);"></div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import {
-      getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
-      onSnapshot, query, orderBy, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    /* ---------------- Firebase init ---------------- */
-    const firebaseConfig = {
-      apiKey: "AIzaSyDjoNG2TBpFV6HC-4HsNyiunmwNOfQ1Mlo",
-      authDomain: "press-44c1c.firebaseapp.com",
-      projectId: "press-44c1c",
-      storageBucket: "press-44c1c.firebasestorage.app",
-      messagingSenderId: "1015064722378",
-      appId: "1:1015064722378:web:aba84783703a514cef2d33",
-      measurementId: "G-VPSZZ3D8S5"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const provider = new GoogleAuthProvider();
-    const reviewsCol = collection(db, "filmReviews");
-
-    /* ---------------- State ---------------- */
-    const CATEGORIES = [
-      { key: "acting", label: "Acting", icon: "user" },
-      { key: "directing", label: "Directing", icon: "clapperboard" },
-      { key: "cinematography", label: "Cinematography", icon: "camera" },
-      { key: "screenplay", label: "Screenplay", icon: "file-text" },
-      { key: "sound", label: "Sound / Score", icon: "music" },
-      { key: "pacing", label: "Pacing", icon: "gauge" },
-    ];
-
-    let currentUser = null;
-    let scores = { acting: 0, directing: 0, cinematography: 0, screenplay: 0, sound: 0, pacing: 0 };
-    let allReviews = [];
-    let searchTerm = "";
-    let ratingFilter = "all";
-    let editingId = null;
-
-    /* ---------------- Utility ---------------- */
-    function icons() { if (window.lucide) window.lucide.createIcons(); }
-
-    function showToast(msg, tone) {
-      const t = document.getElementById("toast");
-      t.textContent = msg;
-      t.style.borderColor = tone === "error" ? "var(--danger)" : "var(--hairline)";
-      t.classList.remove("hidden");
-      clearTimeout(showToast._timer);
-      showToast._timer = setTimeout(() => t.classList.add("hidden"), 2600);
-    }
-
-    function computeOverall() {
-      const rated = CATEGORIES.map(c => scores[c.key]).filter(v => v > 0);
-      if (rated.length === 0) return null;
-      const sum = rated.reduce((a, b) => a + b, 0);
-      return Math.round((sum / rated.length) * 10) / 10;
-    }
-
-    function getVerdict(avg) {
-      if (avg === null) return { label: "Unrated", color: "var(--text-3)", icon: "circle-dashed" };
-      if (avg >= 8.5) return { label: "Must-See", color: "var(--success)", icon: "sparkles" };
-      if (avg >= 6.5) return { label: "Solid", color: "var(--accent)", icon: "thumbs-up" };
-      if (avg >= 4.5) return { label: "Mixed", color: "var(--warning)", icon: "shuffle" };
-      return { label: "Flawed", color: "var(--danger)", icon: "thumbs-down" };
-    }
-
-    function tierOf(avg) {
-      if (avg === null) return "unrated";
-      if (avg >= 8) return "high";
-      if (avg >= 5) return "mid";
-      return "low";
-    }
-
-    function starMarkup(avg, size) {
-      const s = size || 15;
-      const val = avg || 0;
-      let html = "";
-      for (let i = 1; i <= 5; i++) {
-        const filled = val >= i * 2;
-        const half = !filled && val >= i * 2 - 1;
-        html += `<i data-lucide="${filled ? "star" : half ? "star-half" : "star"}" style="width:${s}px;height:${s}px;color:${filled || half ? "var(--accent)" : "var(--text-3)"};fill:${filled ? "var(--accent)" : "none"};"></i>`;
-      }
-      return html;
-    }
-
-    function timeAgo(ts) {
-      if (!ts) return "Just now";
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      const diff = Math.floor((Date.now() - d.getTime()) / 1000);
-      if (diff < 60) return "Just now";
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-      return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    }
-
-    function escapeHtml(str) {
-      return (str || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-    }
-
-    /* ---------------- Theater dimmer ---------------- */
-    const dimmerToggle = document.getElementById("dimmerToggle");
-    const dimmerTrack = document.getElementById("dimmerTrack");
-    function setStealth(on) {
-      document.documentElement.classList.toggle("stealth", on);
-      dimmerTrack.classList.toggle("on", on);
-      dimmerToggle.setAttribute("aria-pressed", String(on));
-      localStorage.setItem("reelnotes-stealth", on ? "1" : "0");
-    }
-    dimmerToggle.addEventListener("click", () => {
-      setStealth(!document.documentElement.classList.contains("stealth"));
-    });
-    setStealth(localStorage.getItem("reelnotes-stealth") === "1");
-
-    /* ---------------- Auth ---------------- */
-    const authArea = document.getElementById("authArea");
-    function renderAuth() {
-      if (currentUser) {
-        authArea.innerHTML = `
-          <button id="userMenuBtn" class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full chip tap-btn">
-            <img src="${currentUser.photoURL || ""}" alt="" class="w-7 h-7 rounded-full object-cover" style="background: var(--elevated);" />
-            <i data-lucide="log-out" style="width:14px;height:14px;"></i>
-          </button>`;
-        document.getElementById("userMenuBtn").addEventListener("click", async () => {
-          try { await signOut(auth); showToast("Signed out"); }
-          catch (e) { showToast("Sign-out failed", "error"); }
-        });
-      } else {
-        authArea.innerHTML = `
-          <button id="signInBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-semibold tap-btn" style="background: var(--accent); color:#000;">
-            <i data-lucide="log-in" style="width:14px;height:14px;"></i> Sign in
-          </button>`;
-        document.getElementById("signInBtn").addEventListener("click", async () => {
-          try { await signInWithPopup(auth, provider); }
-          catch (e) { showToast("Google sign-in failed", "error"); }
-        });
-      }
-      icons();
-    }
-
-    onAuthStateChanged(auth, (user) => {
-      currentUser = user;
-      renderAuth();
-      renderArchive();
-    });
-
-    /* ---------------- Score pickers ---------------- */
-    const scoreCategoriesEl = document.getElementById("scoreCategories");
-    function renderScorePickers() {
-      scoreCategoriesEl.innerHTML = CATEGORIES.map(cat => {
-        const chips = Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
-          `<button type="button" class="score-chip ${scores[cat.key] === n ? "active" : ""}" data-cat="${cat.key}" data-val="${n}">${n}</button>`
-        ).join("");
-        return `
-          <div>
-            <div class="flex items-center gap-1.5 mb-1.5">
-              <i data-lucide="${cat.icon}" style="width:14px;height:14px;color: var(--text-2);"></i>
-              <span class="text-[13px] font-medium" style="color: var(--text-1);">${cat.label}</span>
-              <span class="ml-auto text-[12px] tabular-nums font-semibold" style="color: ${scores[cat.key] ? "var(--accent)" : "var(--text-3)"};">${scores[cat.key] || "–"}</span>
+      <div class="overflow-y-auto px-4 pb-4 space-y-1">
+        ${(session.questions || []).map((q, i) => `
+          <div class="rounded-2xl px-3 py-2.5 hover:bg-[var(--bg)]/50 transition">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" data-qidx="${i}" ${q.checked ? "checked" : ""} class="mt-1 h-4 w-4 rounded question-checkbox shrink-0" />
+              <span class="text-sm leading-snug ${q.checked ? "line-through text-[var(--text-secondary)]" : ""}">${escapeHtml(displayTexts[i] || q.text)}</span>
+            </label>
+            <div class="ml-7 mt-1.5">
+              <button data-answer-qidx="${i}" class="btn-record-answer text-[11px] font-medium px-2 py-1 rounded-full bg-[var(--record)]/10 text-[var(--record)] inline-flex items-center gap-1">${ICONS.micSmall} Antwort aufnehmen</button>
             </div>
-            <div class="flex flex-wrap gap-1.5">${chips}</div>
-          </div>`;
-      }).join("");
-      icons();
-    }
-
-    scoreCategoriesEl.addEventListener("click", (e) => {
-      const btn = e.target.closest(".score-chip");
-      if (!btn) return;
-      const cat = btn.dataset.cat, val = parseInt(btn.dataset.val, 10);
-      scores[cat] = scores[cat] === val ? 0 : val; // tap again to clear
-      renderScorePickers();
-      updateSummary();
+            ${q.answerDe ? `<div class="ml-7 mt-1.5 text-xs text-[var(--text-secondary)] leading-relaxed">${escapeHtml(q.answerDe)}</div>` : ""}
+          </div>`).join("")}
+      </div>`}
+    </div>`;
+  $("#btn-toggle-questions").addEventListener("click", () => {
+    state.questionsPanelMinimized = !state.questionsPanelMinimized;
+    renderQuestionsPanel(session);
+  });
+  $$(".question-checkbox", panel).forEach((cb) => {
+    cb.addEventListener("change", async (e) => {
+      const idx = parseInt(e.target.dataset.qidx, 10);
+      const updated = (session.questions || []).map((q, i) => i === idx ? { ...q, checked: e.target.checked } : q);
+      await saveQuestionsForSession(session.id, updated);
     });
-
-    /* ---------------- Live summary ---------------- */
-    function updateSummary() {
-      const avg = computeOverall();
-      const verdict = getVerdict(avg);
-      document.getElementById("overallScore").textContent = avg === null ? "–" : avg.toFixed(1);
-      document.getElementById("starRow").innerHTML = starMarkup(avg, 17);
-      const badge = document.getElementById("verdictBadge");
-      badge.style.color = verdict.color;
-      badge.style.borderColor = verdict.color === "var(--text-3)" ? "var(--hairline)" : verdict.color;
-      badge.style.background = verdict.color === "var(--text-3)" ? "var(--elevated)" : "color-mix(in srgb, " + verdict.color + " 16%, transparent)";
-      badge.innerHTML = `<i data-lucide="${verdict.icon}" style="width:12px;height:12px;"></i> ${verdict.label}`;
-      icons();
+  });
+  $$(".btn-record-answer", panel).forEach((btn) => {
+    btn.addEventListener("click", () => startAnswerRecording(session, parseInt(btn.dataset.answerQidx, 10)));
+  });
+  const regenBtn = $("#btn-regen-questions");
+  if (regenBtn) regenBtn.addEventListener("click", () => regenerateQuestions(session));
+  const langBtn = $("#btn-toggle-lang");
+  if (langBtn) langBtn.addEventListener("click", () => toggleQuestionsLang(session));
+}
+/* Schreibt questions sowohl für eine bereits gespeicherte Sitzung als auch für die noch laufende
+   Aufnahme (state.draftSession) — beide Fälle können vom Fragen-Panel aus erreicht werden. */
+async function saveQuestionsForSession(sessionId, questions) {
+  if (sessionId === state.draftSessionId && state.draftSession) {
+    state.draftSession.questions = questions;
+    await persistDraftSession();
+    return;
+  }
+  try { await updateDoc(doc(db, "users", state.user.uid, "sessions", sessionId), { questions, updatedAt: serverTimestamp() }); }
+  catch (err) { toast("Status konnte nicht gespeichert werden.", "error"); }
+}
+async function regenerateQuestions(session) {
+  toast("Neue Fragen werden generiert …");
+  try {
+    const prompt = `${buildPrompt({ preInfo: session.preInfo || "", transcript: session.transcriptOriginal || "", isAppend: false, previousSummary: session.summary || "" })}\n\nWichtig: Generiere ANDERE, neue Fragen als zuvor — variiere Blickwinkel und Schwerpunkte.`;
+    const result = await callGeminiSummary(prompt);
+    const questions = (result.questions || []).slice(0, 10).map((q) => ({ text: q, checked: false }));
+    if (session.id === state.draftSessionId && state.draftSession) {
+      state.draftSession.questions = questions;
+      state.draftSession.questionsEn = [];
+      await persistDraftSession();
+      showDraftQuestionsPanel();
+    } else {
+      await updateDoc(doc(db, "users", state.user.uid, "sessions", session.id), { questions, questionsEn: [], updatedAt: serverTimestamp() });
+      renderQuestionsPanel({ ...session, questions, questionsEn: [] });
     }
-
-    /* ---------------- Quick note tags ---------------- */
-    document.querySelectorAll(".quick-tag").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const notesField = document.getElementById("fieldNotes");
-        const time = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
-        const prefix = notesField.value && !notesField.value.endsWith("\n") ? "\n" : "";
-        notesField.value += `${prefix}[${time}] ${btn.dataset.tag} — `;
-        notesField.focus();
-        notesField.setSelectionRange(notesField.value.length, notesField.value.length);
-      });
-    });
-
-    /* ---------------- Form reset / edit ---------------- */
-    const form = document.getElementById("reviewForm");
-    const cancelEditBtn = document.getElementById("cancelEditBtn");
-    const formHeading = document.getElementById("formHeading");
-    const submitBtnLabel = document.getElementById("submitBtnLabel");
-    const formError = document.getElementById("formError");
-
-    function resetForm() {
-      form.reset();
-      scores = { acting: 0, directing: 0, cinematography: 0, screenplay: 0, sound: 0, pacing: 0 };
-      editingId = null;
-      formHeading.textContent = "New Screening Review";
-      submitBtnLabel.textContent = "Submit & Save Review";
-      cancelEditBtn.classList.add("hidden");
-      formError.classList.add("hidden");
-      renderScorePickers();
-      updateSummary();
-    }
-
-    cancelEditBtn.addEventListener("click", resetForm);
-
-    function loadEntryIntoForm(entry) {
-      editingId = entry.id;
-      document.getElementById("fieldTitle").value = entry.title || "";
-      document.getElementById("fieldDirector").value = entry.director || "";
-      document.getElementById("fieldVenue").value = entry.venue || "";
-      document.getElementById("fieldGenre").value = entry.genre || "";
-      document.getElementById("fieldRuntime").value = entry.runtime || "";
-      document.getElementById("fieldNotes").value = entry.notes || "";
-      scores = { ...scores, ...(entry.scores || {}) };
-      renderScorePickers();
-      updateSummary();
-      formHeading.textContent = "Edit Review";
-      submitBtnLabel.textContent = "Save Changes";
-      cancelEditBtn.classList.remove("hidden");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-
-    /* ---------------- Submit ---------------- */
-    const submitBtn = document.getElementById("submitBtn");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      formError.classList.add("hidden");
-
-      const title = document.getElementById("fieldTitle").value.trim();
-      if (!title) {
-        formError.textContent = "Title is required.";
-        formError.classList.remove("hidden");
-        return;
-      }
-      if (!currentUser) {
-        formError.textContent = "Sign in with Google to save reviews.";
-        formError.classList.remove("hidden");
-        return;
-      }
-
-      const overall = computeOverall();
-      const verdict = getVerdict(overall).label;
-
-      const payload = {
-        title,
-        director: document.getElementById("fieldDirector").value.trim(),
-        venue: document.getElementById("fieldVenue").value.trim(),
-        genre: document.getElementById("fieldGenre").value.trim(),
-        runtime: document.getElementById("fieldRuntime").value ? Number(document.getElementById("fieldRuntime").value) : null,
-        scores: { ...scores },
-        overall,
-        verdict,
-        notes: document.getElementById("fieldNotes").value,
-        authorUid: currentUser.uid,
-        authorName: currentUser.displayName || "Anonymous",
-        authorPhoto: currentUser.photoURL || "",
-      };
-
-      submitBtn.disabled = true;
-      submitBtn.style.opacity = "0.6";
-
+    toast("Neue Fragen generiert.");
+  } catch (e) {
+    showErrorModal("Fehler beim Generieren neuer Fragen", friendlyFetchError("Fragen generieren (Gemini)", e));
+  }
+}
+async function toggleQuestionsLang(session) {
+  if (state.questionsDisplayLang !== "en") {
+    const hasEn = (session.questionsEn || []).length === (session.questions || []).length && (session.questionsEn || []).length > 0;
+    if (!hasEn) {
+      toast("Übersetze Fragen ins Englische …");
       try {
-        if (editingId) {
-          await updateDoc(doc(db, "filmReviews", editingId), payload);
-          showToast("Review updated");
+        const list = (session.questions || []).map((q) => q.text);
+        const questionsEn = await translateQuestionsToEnglish(list);
+        session.questionsEn = questionsEn;
+        if (session.id === state.draftSessionId && state.draftSession) {
+          state.draftSession.questionsEn = questionsEn;
+          await persistDraftSession();
         } else {
-          payload.createdAt = serverTimestamp();
-          await addDoc(reviewsCol, payload);
-          showToast("Review saved");
+          await updateDoc(doc(db, "users", state.user.uid, "sessions", session.id), { questionsEn, updatedAt: serverTimestamp() });
         }
-        resetForm();
-      } catch (err) {
-        formError.textContent = "Couldn't save: " + (err.message || "unknown error");
-        formError.classList.remove("hidden");
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.style.opacity = "1";
-      }
-    });
-
-    /* ---------------- Archive: search & filter ---------------- */
-    document.getElementById("searchInput").addEventListener("input", (e) => {
-      searchTerm = e.target.value.trim().toLowerCase();
-      renderArchive();
-    });
-
-    document.getElementById("ratingFilters").addEventListener("click", (e) => {
-      const btn = e.target.closest(".rating-filter");
-      if (!btn) return;
-      ratingFilter = btn.dataset.filter;
-      document.querySelectorAll(".rating-filter").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      renderArchive();
-    });
-
-    /* ---------------- Firestore live archive ---------------- */
-    const archiveList = document.getElementById("archiveList");
-    const emptyState = document.getElementById("emptyState");
-
-    onSnapshot(query(reviewsCol, orderBy("createdAt", "desc")), (snap) => {
-      allReviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderArchive();
-    }, (err) => {
-      showToast("Live sync error: " + err.message, "error");
-    });
-
-    function renderArchive() {
-      let items = allReviews.filter(r => {
-        if (searchTerm) {
-          const hay = [r.title, r.director, r.venue, r.genre].join(" ").toLowerCase();
-          if (!hay.includes(searchTerm)) return false;
-        }
-        if (ratingFilter !== "all" && tierOf(r.overall) !== ratingFilter) return false;
-        return true;
-      });
-
-      if (items.length === 0) {
-        archiveList.innerHTML = "";
-        emptyState.classList.remove("hidden");
+      } catch (e) {
+        showErrorModal("Fehler bei der Übersetzung", friendlyFetchError("Fragen übersetzen (Gemini)", e));
         return;
       }
-      emptyState.classList.add("hidden");
-
-      archiveList.innerHTML = items.map(r => {
-        const verdict = getVerdict(r.overall);
-        const isOwner = currentUser && r.authorUid === currentUser.uid;
-        const catRows = CATEGORIES.map(c => {
-          const v = (r.scores && r.scores[c.key]) || 0;
-          return `<div class="flex items-center gap-1.5">
-            <span class="text-[10px] w-[76px] truncate" style="color: var(--text-3);">${c.label}</span>
-            <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background: var(--elevated);">
-              <div class="h-full rounded-full" style="width:${v * 10}%; background: var(--accent);"></div>
-            </div>
-            <span class="text-[10px] w-4 text-right tabular-nums" style="color: var(--text-2);">${v || "–"}</span>
-          </div>`;
-        }).join("");
-
-        return `
-        <article class="card-solid rounded-3xl p-4 fade-in" style="border-radius: var(--radius-lg);">
-          <div class="flex items-start justify-between gap-3 mb-2">
-            <div class="min-w-0">
-              <h3 class="text-[15px] font-semibold truncate" style="color: var(--text-1);">${escapeHtml(r.title)}</h3>
-              <p class="text-[12px] truncate" style="color: var(--text-3);">
-                ${[r.director, r.venue, r.genre].filter(Boolean).map(escapeHtml).join(" · ") || "No metadata"}
-                ${r.runtime ? ` · ${r.runtime} min` : ""}
-              </p>
-            </div>
-            <div class="flex flex-col items-end shrink-0">
-              <span class="text-[20px] font-bold tabular-nums leading-none" style="color: var(--text-1);">${r.overall !== null && r.overall !== undefined ? r.overall.toFixed(1) : "–"}</span>
-              <span class="text-[10px]" style="color: var(--text-3);">/ 10</span>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 mb-3">
-            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="color:${verdict.color}; border:1px solid ${verdict.color}; background: color-mix(in srgb, ${verdict.color} 14%, transparent);">
-              <i data-lucide="${verdict.icon}" style="width:11px;height:11px;"></i>${verdict.label}
-            </span>
-            <span class="flex items-center gap-1 text-[11px]" style="color: var(--text-3);">
-              <i data-lucide="clock" style="width:11px;height:11px;"></i>${timeAgo(r.createdAt)}
-            </span>
-            ${r.authorName ? `<span class="flex items-center gap-1 text-[11px] truncate" style="color: var(--text-3);"><i data-lucide="user-round" style="width:11px;height:11px;"></i>${escapeHtml(r.authorName)}</span>` : ""}
-          </div>
-
-          <div class="space-y-1 mb-3">${catRows}</div>
-
-          ${r.notes ? `<p class="text-[13px] leading-relaxed whitespace-pre-wrap rounded-xl p-3 mb-3" style="background: var(--elevated); color: var(--text-2);">${escapeHtml(r.notes)}</p>` : ""}
-
-          ${isOwner ? `
-          <div class="flex items-center gap-2 pt-1">
-            <button class="edit-btn chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1" data-id="${r.id}">
-              <i data-lucide="pencil" style="width:12px;height:12px;"></i>Edit
-            </button>
-            <button class="delete-btn chip tap-btn text-[12px] font-medium px-3 py-1.5 rounded-full flex items-center gap-1" data-id="${r.id}" style="color: var(--danger);">
-              <i data-lucide="trash-2" style="width:12px;height:12px;"></i>Delete
-            </button>
-          </div>` : ""}
-        </article>`;
-      }).join("");
-
-      icons();
-
-      archiveList.querySelectorAll(".edit-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const entry = allReviews.find(r => r.id === btn.dataset.id);
-          if (entry) loadEntryIntoForm(entry);
-        });
-      });
-      archiveList.querySelectorAll(".delete-btn").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          if (!confirm("Delete this review? This can't be undone.")) return;
-          try {
-            await deleteDoc(doc(db, "filmReviews", btn.dataset.id));
-            showToast("Review deleted");
-          } catch (err) {
-            showToast("Delete failed: " + err.message, "error");
-          }
-        });
-      });
     }
+    state.questionsDisplayLang = "en";
+  } else {
+    state.questionsDisplayLang = "de";
+  }
+  renderQuestionsPanel(session);
+}
 
-    /* ---------------- Init ---------------- */
-    renderScorePickers();
-    updateSummary();
-    renderAuth();
-    icons();
-  </script>
+/* ---------- Antwort auf eine einzelne Frage aufnehmen (kurze, separate Aufnahme) ---------- */
+async function startAnswerRecording(session, qIndex) {
+  if (state.isRecording) { toast("Bitte zuerst die laufende Aufnahme stoppen.", "error"); return; }
+  if (!state.groqKey || !state.geminiKey) { toast("Bitte zuerst API-Schlüssel hinterlegen.", "error"); openApiKeyModal(false); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { showErrorModal("Mikrofonzugriff verweigert", "Ohne Mikrofonzugriff kann keine Antwort aufgenommen werden."); return; }
+
+  state.answerTarget = { sessionId: session.id, qIndex };
+  state.stream = stream;
+  state.audioChunks = [];
+  state.isRecording = true;
+  state.recordStartTime = Date.now();
+
+  $("#answer-modal-question").textContent = (session.questions[qIndex] && session.questions[qIndex].text) || "";
+  $(".eq-bars-answer").innerHTML = Array.from({ length: 24 }).map(() => '<div class="eq-bar"></div>').join("");
+  $("#modal-answer-recording").classList.remove("hidden");
+  startTimer("#answer-rec-timer");
+  setupVisualizer(stream);
+  setupMediaRecorder(stream);
+}
+function stopAnswerRecording() {
+  if (!state.isRecording || !state.answerTarget) return;
+  state.isRecording = false;
+  stopTimer();
+  cancelAnimationFrame(state.rafId);
+  if (state.audioCtx) { try { state.audioCtx.close(); } catch (e) {} }
+  $("#modal-answer-recording").classList.add("hidden");
+
+  if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+    state.mediaRecorder.onstop = () => {
+      state.stream.getTracks().forEach((t) => t.stop());
+      finalizeAnswerRecording();
+    };
+    try { state.mediaRecorder.stop(); } catch (e) { finalizeAnswerRecording(); }
+  } else {
+    if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+    finalizeAnswerRecording();
+  }
+}
+async function finalizeAnswerRecording() {
+  const target = state.answerTarget;
+  state.answerTarget = null;
+  const audioBlob = state.audioChunks.length ? new Blob(state.audioChunks, { type: (state.mediaRecorder && state.mediaRecorder.mimeType) || "audio/webm" }) : null;
+  if (!audioBlob || audioBlob.size < 800) { toast("Keine Antwort erkannt.", "error"); return; }
+  toast("Antwort wird transkribiert …");
+  try {
+    const original = await transcribeWithGroq(audioBlob, state.recordingLang);
+    if (!original) throw new Error("Groq hat keinen Text erkannt.");
+    const german = await translateOnlyWithGemini(original);
+
+    let questions;
+    if (target.sessionId === state.draftSessionId && state.draftSession) {
+      questions = [...(state.draftSession.questions || [])];
+    } else {
+      const session = state.sessions.find((s) => s.id === target.sessionId);
+      questions = session ? [...(session.questions || [])] : [];
+    }
+    if (questions[target.qIndex]) {
+      questions[target.qIndex] = { ...questions[target.qIndex], answerOriginal: original, answerDe: german || original, checked: true };
+    }
+    await saveQuestionsForSession(target.sessionId, questions);
+    if (target.sessionId === state.draftSessionId) showDraftQuestionsPanel();
+    toast("Antwort gespeichert.");
+  } catch (e) {
+    showErrorModal("Fehler beim Verarbeiten der Antwort", friendlyFetchError("Antwort verarbeiten", e));
+  }
+}
+
+/* ---------- Recording pipeline (mic + visualizer only — transcription happens after stop, via Groq) ---------- */
+async function startRecording(isAppend = false) {
+  if (!state.geminiKey || !state.groqKey) {
+    showErrorModal("API-Schlüssel fehlen", `Bitte zuerst einen Groq- und einen Gemini-API-Schlüssel unter „Einstellungen" hinterlegen.`);
+    openApiKeyModal(false);
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showErrorModal("Mikrofon nicht verfügbar", "Dieser Browser unterstützt keinen Mikrofonzugriff (getUserMedia).");
+    return;
+  }
+
+  if (!isAppend) {
+    const ta = $("#input-preinfo");
+    state.preInfoDraft = ta ? ta.value.trim() : "";
+  }
+
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) {
+    showErrorModal("Mikrofonzugriff verweigert", "Ohne Mikrofonzugriff kann keine Aufnahme gestartet werden. Bitte die Berechtigung in den Chrome-Website-Einstellungen erlauben und erneut versuchen.");
+    return;
+  }
+
+  const existing = isAppend ? state.sessions.find((s) => s.id === state.currentSessionId) : null;
+  state.draftSessionId = existing ? existing.id : null;
+  state.draftSession = {
+    baseOriginal: existing ? (existing.transcriptOriginal || "") : "",
+    baseGerman: existing ? (existing.transcript || "") : "",
+    preInfo: existing ? (existing.preInfo || "") : state.preInfoDraft,
+    title: existing ? existing.title : "",
+    summary: existing ? existing.summary : "",
+    tags: existing ? existing.tags : [],
+    questions: existing ? existing.questions : [],
+    questionsEn: existing ? existing.questionsEn : [],
+  };
+  if (existing && (existing.questions || []).length) {
+    showQuestionsPanel({ id: existing.id, questions: existing.questions, transcriptOriginal: existing.transcriptOriginal, preInfo: existing.preInfo, summary: existing.summary, questionsEn: existing.questionsEn });
+  } else {
+    hideQuestionsPanel();
+  }
+
+  state.stream = stream;
+  state.isAppendMode = isAppend;
+  state.audioChunks = [];
+  state.isRecording = true;
+  state.recordStartTime = Date.now();
+
+  renderRecordingView();
+  startTimer();
+  setupVisualizer(stream);
+  setupMediaRecorder(stream);
+  startCheckpointTimer();
+}
+
+function setupVisualizer(stream) {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  state.audioCtx = new AudioCtx();
+  const source = state.audioCtx.createMediaStreamSource(stream);
+  state.analyser = state.audioCtx.createAnalyser();
+  state.analyser.fftSize = 128;
+  source.connect(state.analyser);
+  const bufferLength = state.analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  const bars = $$(".eq-bar");
+  function draw() {
+    state.rafId = requestAnimationFrame(draw);
+    state.analyser.getByteFrequencyData(dataArray);
+    const step = Math.max(1, Math.floor(bufferLength / bars.length));
+    bars.forEach((bar, i) => {
+      const v = dataArray[i * step] || 0;
+      bar.style.height = Math.max(8, (v / 255) * 100) + "%";
+    });
+  }
+  draw();
+}
+
+function setupMediaRecorder(stream) {
+  let mimeType = "audio/webm;codecs=opus";
+  if (typeof MediaRecorder === "undefined") { showErrorModal("Audioaufnahme nicht verfügbar", "Dieser Browser unterstützt keine Audioaufnahme (MediaRecorder)."); return; }
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/webm";
+  if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "";
+  state.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  state.mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) state.audioChunks.push(e.data); };
+  state.mediaRecorder.start(1000);
+}
+
+function stopRecording() {
+  if (!state.isRecording) return;
+  state.isRecording = false;
+  stopTimer();
+  stopCheckpointTimer();
+  cancelAnimationFrame(state.rafId);
+  if (state.audioCtx) { try { state.audioCtx.close(); } catch (e) {} }
+
+  if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+    state.mediaRecorder.onstop = () => {
+      state.stream.getTracks().forEach((t) => t.stop());
+      finalizeRecording();
+    };
+    try { state.mediaRecorder.stop(); } catch (e) { finalizeRecording(); }
+  } else {
+    if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+    finalizeRecording();
+  }
+}
+
+function cleanupRecording() {
+  if (!state.isRecording) return;
+  state.isRecording = false;
+  stopTimer();
+  stopCheckpointTimer();
+  if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") { try { state.mediaRecorder.stop(); } catch (e) {} }
+  if (state.stream) { try { state.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} }
+  if (state.audioCtx) { try { state.audioCtx.close(); } catch (e) {} }
+  cancelAnimationFrame(state.rafId);
+}
+
+async function finalizeRecording() {
+  const audioBlob = state.audioChunks.length ? new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType || "audio/webm" }) : null;
+  if (!audioBlob || audioBlob.size < 800) {
+    showErrorModal("Keine Aufnahme", "Es wurde kein verwertbares Audio aufgezeichnet. Bitte Mikrofonzugriff und Lautstärke prüfen und erneut versuchen.");
+    state.isAppendMode ? renderSessionDetail(state.sessions.find((s) => s.id === state.currentSessionId)) : renderStartView();
+    return;
+  }
+  renderProcessingView("Transkribiere finalen Abschnitt (Groq)…");
+  try {
+    await processRecording(audioBlob);
+  } catch (e) {
+    showErrorModal("Fehler bei der Verarbeitung", e.message || String(e));
+    const sess = state.draftSessionId ? state.sessions.find((s) => s.id === state.draftSessionId) : null;
+    sess ? renderSessionDetail(sess) : renderStartView();
+  }
+}
+
+/* ---------- Groq (Transkription) ---------- */
+async function transcribeWithGroq(audioBlob, lang) {
+  const form = new FormData();
+  form.append("file", audioBlob, "aufnahme.webm");
+  form.append("model", GROQ_TRANSCRIBE_MODEL);
+  form.append("response_format", "json");
+  if (lang && lang !== "auto") form.append("language", lang);
+
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${state.groqKey}` },
+    body: form,
+  });
+  updateApiUsage("groq", res);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.error?.message || msg; } catch (e) {}
+    throw new Error(`Groq-API-Fehler (${res.status}): ${msg}`);
+  }
+  const data = await res.json();
+  return (data.text || "").trim();
+}
+
+/* ---------- Gemini (Übersetzung + Zusammenfassung + Fragen, alles über einen generischen JSON-Aufruf) ---------- */
+const GEMINI_SUMMARY_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    transcriptDe: { type: "STRING" },
+    title: { type: "STRING" },
+    summary: { type: "STRING" },
+    tags: { type: "ARRAY", items: { type: "STRING" } },
+    questions: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["transcriptDe", "title", "summary", "tags", "questions"],
+};
+const GEMINI_TRANSLATE_SCHEMA = { type: "OBJECT", properties: { translation: { type: "STRING" } }, required: ["translation"] };
+const GEMINI_QUESTIONS_EN_SCHEMA = { type: "ARRAY", items: { type: "STRING" } };
+
+function buildPrompt({ preInfo, transcript, isAppend, previousSummary }) {
+  return `Du bist ein erfahrener Redaktionsassistent für Journalisten. Der folgende Text ist ein Original-Transkript einer Pressekonferenz, automatisch per Spracherkennung (Groq/Whisper) erfasst, in der Originalsprache (z. B. Bosnisch, Kroatisch oder Serbisch).
+
+${preInfo ? `Hintergrundinformationen des Journalisten:\n${preInfo}\n\n` : ""}${isAppend && previousSummary ? `Bisherige Zusammenfassung (bitte mit den neuen Informationen aktualisieren):\n${previousSummary}\n\n` : ""}Original-Transkript (gesamte bisherige Aufnahme):\n${transcript}
+
+Erstelle daraus, ausschließlich auf DEUTSCH, unter Berücksichtigung der GESAMTEN obigen Aufnahme als Kontext:
+1. transcriptDe: eine vollständige, akkurate deutsche Übersetzung des GESAMTEN obigen Original-Transkripts — nichts weglassen oder zusammenfassen, nur sauber übersetzen. Falls "--- Ergänzung ... ---"-Markierungen im Original vorkommen, unverändert an derselben Stelle in der Übersetzung übernehmen.
+2. title: einen prägnanten, aussagekräftigen Titel (max. 10 Wörter)
+3. summary: eine klare, journalistisch strukturierte Zusammenfassung der wichtigsten Aussagen in Absätzen
+4. tags: 5 bis 8 relevante Schlagworte/Keywords zur schnellen Suche
+5. questions: genau 10 strategische, journalistische Anschlussfragen, die zur gesamten bisherigen Aufnahme passen
+
+Antworte ausschließlich als JSON gemäß dem vorgegebenen Schema, ohne zusätzlichen Text.`;
+}
+
+async function callGeminiRaw(promptText, schema) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": state.geminiKey },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: promptText }] }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: schema },
+    }),
+  });
+  updateApiUsage("gemini", res);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const errJson = await res.json(); msg = errJson.error?.message || msg; } catch (e) {}
+    throw new Error(`Gemini-API-Fehler (${res.status}): ${msg}`);
+  }
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Keine Antwort von Gemini erhalten.");
+  return JSON.parse(text);
+}
+async function callGeminiSummary(promptText) { return callGeminiRaw(promptText, GEMINI_SUMMARY_SCHEMA); }
+async function translateOnlyWithGemini(text) {
+  const prompt = `Übersetze den folgenden Text vollständig und akkurat ins Deutsche. Lasse nichts aus. Gib nur die Übersetzung zurück, ohne Kommentare.\n\nText:\n${text}`;
+  const result = await callGeminiRaw(prompt, GEMINI_TRANSLATE_SCHEMA);
+  return result.translation || "";
+}
+async function translateQuestionsToEnglish(list) {
+  const prompt = `Übersetze die folgenden ${list.length} Fragen ins Englische. Gib ein JSON-Array mit genau ${list.length} Strings in derselben Reihenfolge zurück, ohne Kommentare.\n\n${list.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+  return callGeminiRaw(prompt, GEMINI_QUESTIONS_EN_SCHEMA);
+}
+
+/* ---------- Full pipeline: Groq -> Gemini (Übersetzung + Zusammenfassung) -> Firestore ---------- */
+function friendlyFetchError(stage, err) {
+  /* fetch() throws a plain TypeError (not an HTTP error) for network-level failures:
+     no connection, a blocked request (extension/ad-blocker), or a CORS block. The browser
+     deliberately hides which of these it is from JavaScript, so we can only point at the stage. */
+  if (err instanceof TypeError) {
+    return `${stage}: Die Anfrage kam nicht durch ("${err.message}").\n\nMögliche Ursachen:\n– Keine Internetverbindung\n– Eine Browser-Erweiterung (z. B. Werbeblocker) blockiert die Anfrage\n– Der Dienst lässt keine direkten Anfragen aus dem Browser zu (CORS)\n\nTipp: Browser-Konsole (F12) → Netzwerk-Tab öffnen und prüfen, welche Anfrage rot markiert ist.`;
+  }
+  return `${stage}: ${(err && err.message) || String(err)}`;
+}
+
+async function saveSessionDraft({ sessionId, preInfo, transcriptOriginal, title }) {
+  const payload = { transcriptOriginal, status: "pending_ai", updatedAt: serverTimestamp() };
+  if (sessionId) {
+    await updateDoc(doc(db, "users", state.user.uid, "sessions", sessionId), payload);
+    return sessionId;
+  }
+  const newDoc = {
+    title: title || "Unbenannt",
+    preInfo: preInfo || "",
+    transcriptOriginal,
+    transcript: "",
+    summary: "",
+    tags: [],
+    questions: [],
+    status: "pending_ai",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const docRef = await addDoc(collection(db, "users", state.user.uid, "sessions"), newDoc);
+  return docRef.id;
+}
+
+/* Läuft die Gemini-Zusammenfassung für eine BEREITS gespeicherte Sitzung. Schlägt dieser Aufruf fehl,
+   bleibt das Transkript in Firestore erhalten (status "pending_ai") und kann jederzeit erneut
+   gesendet werden — es geht nichts verloren. */
+async function runAiSummary({ sessionId, preInfo, transcriptOriginal, isAppend, previousSummary }) {
+  const prompt = buildPrompt({ preInfo, transcript: transcriptOriginal, isAppend, previousSummary });
+  let result;
+  try { result = await callGeminiSummary(prompt); }
+  catch (e) { throw new Error(friendlyFetchError("Übersetzung & Zusammenfassung (Gemini)", e)); }
+  if (!result.transcriptDe) throw new Error("Gemini hat kein übersetztes Transkript zurückgegeben.");
+  const questions = (result.questions || []).slice(0, 10).map((q) => ({ text: q, checked: false }));
+  await updateDoc(doc(db, "users", state.user.uid, "sessions", sessionId), {
+    title: result.title || "Unbenannt",
+    transcript: result.transcriptDe,
+    summary: result.summary || "",
+    tags: result.tags || [],
+    questions,
+    status: "complete",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function retryAiSummary(session) {
+  renderProcessingView("Übersetze & erstelle Zusammenfassung (Gemini)…");
+  try {
+    await runAiSummary({
+      sessionId: session.id,
+      preInfo: session.preInfo || "",
+      transcriptOriginal: session.transcriptOriginal || "",
+      isAppend: !!session.summary,
+      previousSummary: session.summary || "",
+    });
+    toast("Sitzung erfolgreich verarbeitet.");
+  } catch (e) {
+    showErrorModal("Fehler bei der Verarbeitung", e.message || String(e));
+  }
+  const updated = state.sessions.find((s) => s.id === session.id) || session;
+  renderSessionDetail(updated);
+}
+
+async function processRecording(audioBlob) {
+  const base = state.draftSession || {};
+
+  let rawTranscript;
+  try { rawTranscript = await transcribeWithGroq(audioBlob, state.recordingLang); }
+  catch (e) { throw new Error(friendlyFetchError("Transkription (Groq)", e)); }
+  if (!rawTranscript) throw new Error("Groq hat keinen Text erkannt (leere Antwort). Bitte erneut versuchen oder Sprache prüfen.");
+
+  const stamp = new Date().toLocaleString("de-DE");
+  const sep = base.baseOriginal ? `\n\n--- Ergänzung ${stamp} ---\n\n` : "";
+  const combinedOriginal = (base.baseOriginal || "") + sep + rawTranscript;
+
+  /* Transkript sofort persistieren, BEVOR Gemini aufgerufen wird — lehnt Gemini gerade ab
+     oder schlägt fehl, bleibt das Transkript trotzdem gespeichert und kann erneut gesendet werden. */
+  const sessionId = await saveSessionDraft({ sessionId: state.draftSessionId, preInfo: base.preInfo, transcriptOriginal: combinedOriginal, title: base.title });
+  state.currentSessionId = sessionId;
+  state.draftSessionId = sessionId;
+
+  const url = URL.createObjectURL(audioBlob);
+  const filename = `presse-assistent-${sessionId}-${Date.now()}.webm`;
+  if (!state.localAudioBlobs[sessionId]) state.localAudioBlobs[sessionId] = [];
+  state.localAudioBlobs[sessionId].push({ url, filename });
+
+  updateProcessingStep("Übersetze & erstelle Zusammenfassung (Gemini)…");
+  await runAiSummary({ sessionId, preInfo: base.preInfo || "", transcriptOriginal: combinedOriginal, isAppend: !!base.baseOriginal, previousSummary: base.summary || "" });
+
+  state.isAppendMode = false;
+  state.draftSession = null;
+  state.draftSessionId = null;
+  toast("Sitzung erfolgreich verarbeitet.");
+}
+
+/* ---------- Static event bindings ---------- */
+function bindStaticEvents() {
+  $("#btn-google-signin").addEventListener("click", signIn);
+  $("#btn-save-apikey").addEventListener("click", onSaveApiKeyClick);
+  $("#btn-cancel-apikey").addEventListener("click", closeApiKeyModal);
+  $("#btn-theme-toggle").addEventListener("click", toggleTheme);
+  $("#btn-sidebar-toggle").addEventListener("click", openSidebarMobile);
+  $("#sidebar-overlay").addEventListener("click", closeSidebarMobile);
+  $("#btn-new-session").addEventListener("click", () => {
+    if (state.isRecording) { toast("Bitte zuerst die Aufnahme stoppen.", "error"); return; }
+    renderStartView(); closeSidebarMobile();
+  });
+  $("#btn-new-session-mobile").addEventListener("click", () => {
+    if (state.isRecording) { toast("Bitte zuerst die Aufnahme stoppen.", "error"); return; }
+    renderStartView(); closeSidebarMobile();
+  });
+  $("#btn-user-menu").addEventListener("click", () => $("#user-dropdown").classList.toggle("hidden"));
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#btn-user-menu") && !e.target.closest("#user-dropdown")) $("#user-dropdown").classList.add("hidden");
+    if (!e.target.closest("#btn-usage-toggle") && !e.target.closest("#usage-panel")) $("#usage-panel").classList.add("hidden");
+  });
+  $("#btn-usage-toggle").addEventListener("click", () => { renderApiUsagePanel(); $("#usage-panel").classList.toggle("hidden"); });
+  $("#btn-open-settings").addEventListener("click", () => { $("#user-dropdown").classList.add("hidden"); openApiKeyModal(false); });
+  $("#btn-signout").addEventListener("click", logOut);
+  $("#input-search-desktop").addEventListener("input", onSearchInput);
+  $("#input-search-mobile").addEventListener("input", onSearchInput);
+  $("#btn-close-error").addEventListener("click", hideErrorModal);
+  $("#modal-error").addEventListener("click", (e) => { if (e.target.id === "modal-error") hideErrorModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideErrorModal(); });
+  $("#btn-anon-signin").addEventListener("click", signInAnonymous);
+  $("#btn-stop-answer-recording").addEventListener("click", stopAnswerRecording);
+}
+
+/* ---------- Init ---------- */
+initTheme();
+bindStaticEvents();
+updateThemeIcon();
+
+window.__paModuleReady = true; /* startup completed without throwing */
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Unbehandelter Fehler:", event.reason);
+  const msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
+  try { showErrorModal("Unerwarteter Fehler", msg); } catch (e) { /* modal itself unavailable — console has the details */ }
+});
+
+} catch (err) {
+  /* Startup failed before the UI could render — show a visible, dependency-free diagnosis
+     instead of leaving a blank screen. */
+  console.error("Presse-Assistent Startfehler:", err);
+  window.__paModuleReady = true;
+  const el = document.createElement("div");
+  el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:#F5F5F7;color:#1D1D1F;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;text-align:center;z-index:99999;';
+  const message = (err && err.message) ? err.message : String(err);
+  el.innerHTML = '<div style="max-width:440px;"><div style="font-size:17px;font-weight:600;margin-bottom:10px;">Presse-Assistent konnte nicht starten</div><div style="font-size:14px;line-height:1.6;color:#6E6E73;">Fehler: '
+    + message.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    + '<br><br>Details in der Browser-Konsole (F12 → Konsole).</div></div>';
+  document.body.appendChild(el);
+}
+</script>
 </body>
 </html>
