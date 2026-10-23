@@ -129,6 +129,19 @@
   .ptctl .btn{min-width:48px;min-height:48px;font-size:1.05rem}
   .ptctl .grp{display:flex;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line)}.ptctl .grp:first-child{border:0;padding:0}
   .ptctl .val{min-width:3.2ch;text-align:center;font-variant-numeric:tabular-nums;font-weight:700}
+  /* ---- song layer ("now playing"), independent of lower third + ticker ---- */
+  .sg{position:absolute;left:5cqw;top:5cqw;display:flex;align-items:stretch;opacity:0;transform:translateY(-3cqw);max-width:70cqw;
+      filter:drop-shadow(0 1cqw 2cqw rgba(0,0,0,.5));transition:transform .5s var(--ease),opacity .35s}
+  .sg.in{opacity:1;transform:none}.sg.out{opacity:0;transform:translateY(-2cqw);transition-duration:.3s}
+  .sg-eq{width:6cqw;display:flex;align-items:flex-end;justify-content:center;gap:.5cqw;padding:1.3cqw;background:var(--gold);border-radius:.9cqw 0 0 .9cqw}
+  .sg-eq i{width:.9cqw;background:var(--navy);border-radius:.2cqw;height:30%;animation:eq 1s ease-in-out infinite}
+  .sg-eq i:nth-child(2){animation-delay:-.3s}.sg-eq i:nth-child(3){animation-delay:-.6s}.sg-eq i:nth-child(4){animation-delay:-.15s}
+  @keyframes eq{0%,100%{height:25%}50%{height:100%}}
+  .sg-t{padding:1.1cqw 2.6cqw 1.2cqw 1.8cqw;background:linear-gradient(100deg,rgba(7,15,27,.96),rgba(0,51,102,.94));border-radius:0 .9cqw .9cqw 0;min-width:0}
+  .sg-k{font-weight:800;font-size:1.2cqw;letter-spacing:.15em;color:var(--gold)}
+  .sg-title{font-weight:800;font-size:3.2cqw;line-height:1.05;color:#fff}
+  .sg-artist{font-weight:500;font-size:2cqw;color:#cfe0f5;margin-top:.3cqw}.sg-meta{font-size:1.5cqw;color:#9aa9bd}
+  .sg-artist:empty,.sg-meta:empty{display:none}
 </style>
 </head>
 <body class="min-h-screen">
@@ -165,7 +178,7 @@ if (!["control", "studio", "prompter", "viewer", "output"].includes(role)) role 
 $("#reset").onclick = () => { localStorage.removeItem("bhrt-role"); location.href = location.pathname; };
 
 /* ---------- State & Firebase ---------- */
-let st = { schedule: [], overlays: [], hosts: [], tickers: [], actions: [], viz: "bars", viewerMsg: "", show: {}, fault: false, faultMsg: {}, active: -1, script: "", pr: { playing: false, speed: 40, size: 56, anchor: 0, at: 0 }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both" }, intro: null, faultId: "", faultAt: 0, sb: {}, start: {}, clips: [], vp: {}, rec: {} };
+let st = { schedule: [], overlays: [], hosts: [], tickers: [], actions: [], viz: "bars", viewerMsg: "", show: {}, fault: false, faultMsg: {}, active: -1, script: "", pr: { playing: false, speed: 40, size: 56, anchor: 0, at: 0 }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both" }, intro: null, faultId: "", faultAt: 0, sb: {}, start: {}, clips: [], vp: {}, rec: {}, songs: [], sg: {} };
 let off = 0, db = null, onState = () => {};
 const now = () => Date.now() + off;
 const arr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) : []);
@@ -175,6 +188,8 @@ const patch = (path, obj) => {
   if (path === "ov") { obj = { ...obj }; if (obj.onAir) obj.at = now(); if (obj.tickerOn) obj.tickerAt = now(); }   // stamp every take with server time
   return db && update(ref(db, "studio/" + path), obj).catch(e => toast("Write failed: " + e.message));
 };
+const AUTO_SG = 20000;                          // song card leaves automatically after 20 s unless "hold" is set
+const sgView = () => { const o = st.sg || {}; return { onAir: !!o.onAir && (!!o.hold || now() - (o.at || 0) < AUTO_SG), live: o.live, staged: o.staged }; };
 const ovView = () => { const o = st.ov, n = now(); return { ...o, onAir: !!o.onAir && n - (o.at || 0) < AUTO_OFF, tickerOn: !!o.tickerOn && n - (o.tickerAt || 0) < AUTO_OFF }; };
 
 try {
@@ -183,7 +198,7 @@ try {
   onValue(ref(db, "studioAudio"), s => { const v = s.val(); if (v && v.b && !mic.on && performance.now() - bcAt > 500) setBands(Uint8Array.from(atob(v.b), c => c.charCodeAt(0))); });
   onValue(ref(db, "studio"), s => {
     const v = s.val() || {};
-    st = { ...st, ...v, schedule: arr(v.schedule), overlays: arr(v.overlays), hosts: arr(v.hosts), tickers: arr(v.tickers), actions: arr(v.actions), viz: v.viz || "bars", viewerMsg: v.viewerMsg || "", show: v.show || {}, fault: !!v.fault, faultMsg: v.faultMsg || {}, script: v.script || "", pr: { ...st.pr, ...(v.pr || {}) }, ov: { ...st.ov, ...(v.ov || {}) }, active: v.active ?? -1, start: v.start || {}, clips: arr(v.clips), vp: v.vp || {}, rec: v.rec || {} };
+    st = { ...st, ...v, schedule: arr(v.schedule), overlays: arr(v.overlays), hosts: arr(v.hosts), tickers: arr(v.tickers), actions: arr(v.actions), viz: v.viz || "bars", viewerMsg: v.viewerMsg || "", show: v.show || {}, fault: !!v.fault, faultMsg: v.faultMsg || {}, script: v.script || "", pr: { ...st.pr, ...(v.pr || {}) }, ov: { ...st.ov, ...(v.ov || {}) }, active: v.active ?? -1, start: v.start || {}, clips: arr(v.clips), vp: v.vp || {}, rec: v.rec || {}, songs: arr(v.songs), sg: v.sg || {} };
     faultUpdate();                                   // fault first: a page render error must never block it
     try { introUpdate(); boardUpdate(); cdUpdate(); vbankUpdate(); onState(); } catch (err) { console.error(err); }
   }, e => toast("Database error: " + e.message));
@@ -192,7 +207,8 @@ try {
 /* ---------- Shared pieces ---------- */
 const header = (sub) => `<header class="flex items-center gap-4 px-4 py-3 border-b border-[#1d3557] bg-[#0B192C]"><img src="${LOGO}" alt="BHRT" class="h-10 sm:h-12"><div class="font-bold text-lg">${sub}</div><div id="conn" class="ml-auto mr-20 text-xs text-slate-400"></div></header>`;
 const GFX_HTML = `<div class="lt"><div class="card"><div class="name"></div><div class="roles"><div class="role en" lang="en"></div><div class="role bs" lang="bs"></div></div></div></div>
-  <div class="tk"><div class="tk-label">BHRT</div><div class="tk-track"><span></span></div></div>`;
+  <div class="tk"><div class="tk-label">BHRT</div><div class="tk-track"><span></span></div></div>
+  <div class="sg"><div class="sg-eq"><i></i><i></i><i></i><i></i></div><div class="sg-t"><div class="sg-k">♪ NOW PLAYING · SADA SE SVIRA</div><div class="sg-title"></div><div class="sg-artist"></div><div class="sg-meta"></div></div></div>`;
 /* Idempotent: call on every state change. Keeps its DOM nodes so graphics can animate in AND out. */
 function gfx(root, s) {                       // s = { live, onAir, lang, ticker, tickerOn }
   root.classList.add("gfx"); if (!root.firstChild) root.innerHTML = GFX_HTML;
@@ -204,6 +220,13 @@ function gfx(root, s) {                       // s = { live, onAir, lang, ticker
     if (lt.classList.contains("in")) { lt.classList.replace("in", "out"); if (o) root._t = setTimeout(show, 350); }
     else if (o) show();
   }
+  const sg = $(".sg", root), so = s.song && s.song.onAir ? s.song.live : null, sk = so ? [so.title, so.artist, so.album, so.year].join("|") : "";
+  if (root._sk !== sk) {                      // song layer: own state, own animation, runs next to lower third + ticker
+    root._sk = sk; clearTimeout(root._st);
+    const showSong = () => { $(".sg-title", sg).textContent = so.title || ""; $(".sg-artist", sg).textContent = so.artist || ""; $(".sg-meta", sg).textContent = [so.album, so.year].filter(Boolean).join(" · "); sg.classList.remove("out"); sg.classList.add("in"); };
+    if (sg.classList.contains("in")) { sg.classList.replace("in", "out"); if (so) root._st = setTimeout(showSong, 350); }
+    else if (so) showSong();
+  }
   tk.classList.toggle("in", !!(s.tickerOn && s.ticker));
   if (tk._txt !== s.ticker) { tk._txt = s.ticker; $(".tk-track span", tk).textContent = s.ticker || ""; }
 }
@@ -213,7 +236,8 @@ const drawPreview = (id) => {                  // pure DOM/CSS
   const el = $("#" + id); if (!el) return;
   if (!el.firstChild) el.innerHTML = '<div class="gfx"></div><div class="tally"></div>';
   const v = ovView(), o = v.onAir ? v.live : v.staged;   // preview shows STAGED while off air
-  gfx($(".gfx", el), { ...v, onAir: !!o, live: o });
+  const sv = sgView(), so = sv.onAir ? sv.live : sv.staged;
+  gfx($(".gfx", el), { ...v, onAir: !!o, live: o, song: { onAir: !!so, live: so } });
   const left = Math.max(0, Math.ceil((AUTO_OFF - (now() - (st.ov.at || 0))) / 1000));
   const t = $(".tally", el); t.textContent = v.onAir ? `ON AIR · ${left}s` : o ? "STAGED" : "IDLE"; t.dataset.s = v.onAir ? "air" : "";
 };
@@ -589,10 +613,12 @@ function control() {
           <label>Font size <span id="fzv"></span><input id="fz" type="range" min="28" max="120" class="w-full accent-yellow-400"></label></div></section>
       <section class="panel"><h2>Intro</h2><input id="iu" class="field" placeholder="Intro video URL (MP4 / WebM). Empty = built-in logo sting">
         <div class="flex gap-2 mt-2"><button id="ip" class="btn gold">Play intro</button><button id="is" class="btn">Stop</button></div></section>
-      <section class="panel"><h2>Video bank <span class="text-xs font-normal normal-case tracking-normal text-slate-400">· preloaded on every output, play several at once</span></h2>
-        <div id="vbl" class="grid gap-1 text-sm max-h-56 overflow-y-auto"></div>
+      <section class="panel"><h2>Video bank <span class="text-xs font-normal normal-case tracking-normal text-slate-400">· videos &amp; songs · preloaded on every output, play several at once</span></h2>
+        <div id="vbl" class="grid gap-1 text-sm max-h-72 overflow-y-auto"></div>
         <div class="grid grid-cols-[1fr_2fr_auto] gap-2 mt-2"><input id="vn" class="field" placeholder="Name"><input id="vu" class="field" placeholder="Video URL (MP4 / WebM)"><button id="va" class="btn">Add</button></div>
-        <div class="flex flex-wrap gap-2 mt-2"><button id="vgo" class="btn gold">▶ Play ticked together</button><button id="vstop" class="btn red">■ Stop all</button></div></section>
+        <div class="flex flex-wrap gap-2 mt-2"><button id="vgo" class="btn gold">▶ Play ticked together</button><button id="vstop" class="btn red">■ Stop all</button><button id="sgoff" class="btn">♪ Song card OFF</button></div>
+        <div class="flex flex-col gap-1 mt-2 text-sm text-slate-300"><label class="flex items-center gap-2"><input id="sgauto" type="checkbox" checked class="w-5 h-5 accent-yellow-400">Show song card automatically when a video with song info plays</label>
+        <label class="flex items-center gap-2"><input id="sghold" type="checkbox" class="w-5 h-5 accent-yellow-400">Keep manually shown song card until OFF (otherwise 20 s)</label></div></section>
       <section class="panel"><h2>Audio</h2><div class="relative"><canvas id="lvlc" class="w-full rounded bg-[#06101f]" style="height:72px"></canvas>
           <div id="fbanner" class="hidden absolute inset-0 rounded bg-red-700/95 flex items-center gap-2 px-3 text-sm font-bold flex-wrap"><i class="fdot"></i><span>FAULT SCREEN LIVE</span><span id="fbtime" class="tabular-nums"></span><span id="fback" class="font-normal text-xs"></span><span class="ml-auto flex gap-2"><button id="fbig" class="btn py-1 text-xs">Enlarge</button><button id="fbclear" class="btn py-1 text-xs">Clear</button></span></div></div>
         <div class="flex gap-2 mt-2"><select id="cdev" class="field"></select><button id="cmic" class="btn gold">Start</button></div></section>
@@ -612,6 +638,8 @@ function control() {
   const sample = { show: { title: "Winter Sports Live", title_bs: "Zimski sportovi uživo" },
     hosts: [{ name: "Anna Lang", role: "Host", role_bs: "Voditeljica" }, { name: "Emir Hodžić", role: "Co-host", role_bs: "Suvoditelj" }],
     tickers: [{ en: "Slalom starts at 10:00", bs: "Slalom počinje u 10:00" }, { en: "Medal table follows", bs: "Slijedi tabela medalja" }],
+    videos: [{ name: "Opening VT", link: "https://example.com/opening.mp4", audio: true }, { name: "Song: Primjer", link: "https://example.com/song.mp4", title: "Primjer pjesme", artist: "Example Artist", album: "Album Name", year: 2024, audio: true }],
+    songs: [{ title: "Primjer pjesme", artist: "Example Artist", album: "Album Name", year: 2024 }, { title: "Second song", artist: "Another Artist" }],
     viz: "ring", prompter: { speed: 35, size: 60 }, viewerMessage: "Welcome! The programme is live. / Dobrodošli! Program je uživo.",
     faultMessage: { en: "We are experiencing a technical problem. Please stand by.", bs: "Trenutno imamo tehničku smetnju. Molimo vas za malo strpljenja." },
     actions: [{ label: "Intro graphic", do: "lower", title: "Winter Sports Live", subtitle: "BHRT", subtitle_bs: "Zimski sportovi uživo", key: "1" }, { label: "All graphics off", do: "offair_all", cls: "red", key: "0" }, { label: "Prompter fast", do: "speed", value: 90 }, { label: "Viewer note", do: "viewer_msg", text: "Back in a moment! / Odmah se vraćamo!" }, { label: "Fault ON", do: "fault", cls: "red" }, { label: "Fault OFF", do: "fault_off" }],
@@ -633,7 +661,9 @@ function control() {
       const j = JSON.parse($("#jt").value);
       const o = { active: -1 };
       for (const [k, d] of [["schedule", "schedule"], ["overlays", "overlays"], ["hosts", "hosts"], ["ticker", "tickers"], ["actions", "actions"], ["script", "script"], ["show", "show"], ["viz", "viz"], ["viewerMessage", "viewerMsg"], ["faultMessage", "faultMsg"]]) if (j[k] !== undefined) o[d] = j[k];
-      if (Array.isArray(j.clips)) o.clips = j.clips.map((c, i) => ({ id: c.id || crypto.randomUUID().slice(0, 8), name: c.name || "Clip " + (i + 1), url: c.url, audio: !!c.audio, loop: !!c.loop }));
+      const vids = j.videos || j.clips;           // "videos": [{ name, link, title, artist, album, year, audio, loop }]
+      if (Array.isArray(vids)) o.clips = vids.map((c, i) => { const m = c.song || {}; return { id: c.id || crypto.randomUUID().slice(0, 8), name: c.name || c.title || "Clip " + (i + 1), url: c.link || c.url || "", audio: !!c.audio, loop: !!c.loop, title: c.title ?? m.title ?? "", artist: c.artist ?? m.artist ?? "", album: c.album ?? m.album ?? "", year: c.year ?? m.year ?? "" }; }).filter(c => c.url);
+      if (Array.isArray(j.songs)) o.songs = j.songs.map(x => ({ title: x.title || x.name || "", artist: x.artist || "", album: x.album || "", year: x.year || "" }));
       patch("", o); if (j.script !== undefined) $("#sc").value = j.script;
       if (j.prompter) patch("pr", { speed: j.prompter.speed ?? st.pr.speed, size: j.prompter.size ?? st.pr.size, anchor: 0, at: now(), playing: false });
       toast("Show file published");
@@ -718,30 +748,44 @@ function control() {
   /* --- video bank --- */
   const sel = new Set(), clipSave = a => put("clips", a);
   $("#va").onclick = () => { const u = $("#vu").value.trim(); if (!u) return toast("Enter a video URL"); clipSave([...st.clips, { id: crypto.randomUUID().slice(0, 8), name: $("#vn").value.trim() || "Clip " + (st.clips.length + 1), url: u, audio: false, loop: false }]); $("#vu").value = $("#vn").value = ""; };
-  const vPlay = ids => { const startAt = now() + 1200, u = {}; ids.forEach(id => { const c = st.clips.find(x => x.id === id); if (c) u[id] = { on: true, pid: crypto.randomUUID().slice(0, 8), startAt, loop: !!c.loop, audio: !!c.audio }; }); if (Object.keys(u).length) patch("vp", u); };
-  const vStop = ids => { const u = {}; ids.forEach(id => u[id] = { on: false, pid: "" }); if (ids.length) patch("vp", u); };
+  const vPlay = ids => { const startAt = now() + 1200, u = {}; ids.forEach(id => { const c = st.clips.find(x => x.id === id); if (c) u[id] = { on: true, pid: crypto.randomUUID().slice(0, 8), startAt, loop: !!c.loop, audio: !!c.audio }; }); if (Object.keys(u).length) patch("vp", u);
+    if ($("#sgauto").checked) { const c = ids.map(id => st.clips.find(x => x.id === id)).find(c => c && (c.title || c.artist)); if (c) patch("sg", { staged: sgObj(c), live: sgObj(c), onAir: true, hold: true, at: startAt }); } };
+  const vStop = ids => { const u = {}; ids.forEach(id => u[id] = { on: false, pid: "" }); if (ids.length) patch("vp", u);
+    if ($("#sgauto").checked && st.sg.onAir && st.sg.hold && ids.some(id => { const c = st.clips.find(x => x.id === id); return c && (c.title || c.artist); })) patch("sg", { onAir: false }); };
   $("#vgo").onclick = () => sel.size ? vPlay([...sel]) : toast("Tick the clips you want to play together");
   $("#vstop").onclick = () => vStop(st.clips.map(c => c.id));
   $("#vbl").onclick = e => {
     const b = e.target.closest("[data-v]"); if (!b) return; const id = b.dataset.id, a = b.dataset.v;
-    if (a === "play") vPlay([id]); else if (a === "stop") vStop([id]);
+    if (a === "scard") sgToggle(st.songs[+b.dataset.k]); else if (a === "card") sgToggle(st.clips.find(c => c.id === id)); else if (a === "play") vPlay([id]); else if (a === "stop") vStop([id]);
     else if (a === "audio" || a === "loop") clipSave(st.clips.map(c => c.id === id ? { ...c, [a]: !c[a] } : c));
     else if (a === "del") { clipSave(st.clips.filter(c => c.id !== id)); db && set(ref(db, "studio/vp/" + id), null); sel.delete(id); }
   };
   $("#vbl").onchange = e => { const c = e.target.closest("[data-sel]"); if (c) c.checked ? sel.add(c.dataset.sel) : sel.delete(c.dataset.sel); };
   const drawVids = () => {
-    $("#vbl").innerHTML = st.clips.length ? st.clips.map(c => {
-      const r = rdy[c.id] || 0, p = st.vp[c.id] || {}, pl = !!p.on, i = esc(c.id);
+    const rows = st.clips.map(c => {
+      const r = rdy[c.id] || 0, p = st.vp[c.id] || {}, pl = !!p.on, i = esc(c.id), has = !!(c.title || c.artist);
       const stat = !nOut ? '<span class="pill">no output online</span>' : r >= nOut ? `<span class="pill green">READY ${r}/${nOut}</span>` : `<span class="pill gold">loading ${r}/${nOut}</span>`;
+      const info = has ? `<div class="text-xs text-slate-400 truncate">♪ ${esc(c.title || c.name)}${c.artist ? " — " + esc(c.artist) : ""}${c.album || c.year ? " · " + esc([c.album, c.year].filter(Boolean).join(" ")) : ""}</div>` : "";
       return `<div class="flex items-center gap-2 rounded px-2 py-1 ${pl ? "bg-red-900/40" : "bg-[#06101f]"}"><input type="checkbox" data-sel="${i}" ${sel.has(c.id) ? "checked" : ""} class="w-5 h-5 accent-yellow-400">
-        <div class="flex-1 min-w-0"><div class="truncate font-semibold">${esc(c.name)}</div><div class="flex gap-1 mt-0.5 flex-wrap">${stat}${pl ? `<span class="pill red"><i class="fdot"></i>PLAYING <span data-el="${i}"></span></span>` : ""}</div></div>
-        <button data-v="audio" data-id="${i}" class="btn py-1 px-2 ${c.audio ? "gold" : ""}" title="Sound on output">♪</button><button data-v="loop" data-id="${i}" class="btn py-1 px-2 ${c.loop ? "gold" : ""}" title="Loop">⟳</button>
+        <div class="flex-1 min-w-0"><div class="truncate font-semibold">${esc(c.name)}</div>${info}<div class="flex gap-1 mt-0.5 flex-wrap">${stat}${pl ? `<span class="pill red"><i class="fdot"></i>PLAYING <span data-el="${i}"></span></span>` : ""}</div></div>
+        ${has ? `<button data-v="card" data-id="${i}" class="btn py-1 px-2 ${sgIsLive(c) ? "red" : ""}" title="Song title card on/off">♪ Card</button>` : ""}
+        <button data-v="audio" data-id="${i}" class="btn py-1 px-2 ${c.audio ? "gold" : ""}" title="Sound on output">🔊</button><button data-v="loop" data-id="${i}" class="btn py-1 px-2 ${c.loop ? "gold" : ""}" title="Loop">⟳</button>
         <button data-v="play" data-id="${i}" class="btn py-1 px-2 gold">▶</button><button data-v="stop" data-id="${i}" class="btn py-1 px-2 red">■</button><button data-v="del" data-id="${i}" class="btn py-1 px-2" title="Remove">✕</button></div>`;
-    }).join("") : '<div class="text-slate-400">No clips yet. Add a video URL below.</div>';
+    });
+    const songs = st.songs.map((o, k) => `<div class="flex items-center gap-2 rounded px-2 py-1 ${sgIsLive(o) ? "bg-red-900/40" : "bg-[#06101f]"}"><span class="w-5 text-center">♪</span><div class="flex-1 min-w-0"><div class="truncate font-semibold">${esc(o.title)}</div><div class="text-xs text-slate-400 truncate">${esc(o.artist)}${o.album || o.year ? " · " + esc([o.album, o.year].filter(Boolean).join(" ")) : ""} · song card only</div></div>
+        <button data-v="scard" data-k="${k}" class="btn py-1 px-2 ${sgIsLive(o) ? "red" : "gold"}">♪ Card</button></div>`);
+    $("#vbl").innerHTML = rows.length || songs.length ? rows.concat(songs).join("") : '<div class="text-slate-400">Nothing loaded. Add "videos" (and optional "songs") to the JSON or add a URL below.</div>';
   };
   onVid = drawVids;
   setInterval(() => document.querySelectorAll("[data-el]").forEach(el => { const p = st.vp[el.dataset.el]; el.textContent = p && p.startAt ? (now() < p.startAt ? "starting…" : fmtEl(now() - p.startAt)) : ""; }), 500);
   const recBadge = () => { const who = Object.entries(st.rec || {}).filter(([, v]) => v).map(([k]) => k), r = $("#recb"); r.classList.toggle("hidden", !who.length); r.textContent = "● REC " + who.join(", "); };
+  /* --- song cards live inside the video bank --- */
+  const sgObj = o => ({ title: o.title || o.name || "", artist: o.artist || "", album: o.album || "", year: o.year || "" });
+  const sgTake = (o, hold) => patch("sg", { staged: sgObj(o), live: sgObj(o), onAir: true, hold: !!hold, at: now() });
+  const sgIsLive = o => { const v = sgView(); return v.onAir && v.live && v.live.title === sgObj(o).title && v.live.artist === sgObj(o).artist; };
+  const sgToggle = o => sgIsLive(o) ? patch("sg", { onAir: false }) : sgTake(o, $("#sghold").checked);
+  $("#sgoff").onclick = () => patch("sg", { onAir: false });
+  const drawSongs = () => { };
   micUI("#cdev", "#cmic"); mountMeter("lvlc"); wake();
   $("#ip").onclick = () => run({ do: "intro_play", url: $("#iu").value.trim() }); $("#is").onclick = () => run({ do: "intro_stop" });
   $("#sbtn").onclick = () => run({ do: "sched_toggle" });
@@ -749,6 +793,7 @@ function control() {
   setInterval(() => {                         // auto-off: clear the shared state once the 30 s are over
     if (st.ov.onAir && !ovView().onAir) patch("ov", { onAir: false });
     if (st.ov.tickerOn && !ovView().tickerOn) patch("ov", { tickerOn: false });
+    if (st.sg.onAir && !sgView().onAir) patch("sg", { onAir: false });
   }, 1000);
   document.addEventListener("keydown", e => { if (e.ctrlKey && e.shiftKey && e.code === "KeyF") { e.preventDefault(); if (!st.fault) faultSet(true); } });   // instant ON; clearing asks for confirmation
   $("#faultbtn").onclick = () => st.fault ? faultClear() : faultSet(true);
@@ -766,7 +811,7 @@ function control() {
     if (!init || document.activeElement !== $("#fz")) $("#fz").value = st.pr.size;
     if (!init && st.script) { $("#sc").value = st.script; } init = true;
     const sbb = $("#sbtn"); if (sbb) { const on = !!(st.sb && st.sb.on); sbb.textContent = on ? "Hide schedule on viewer screen" : "Show schedule on viewer screen"; sbb.classList.toggle("gold", on); }
-    drawActs(); faultUpdate(); drawVids(); drawStart(); recBadge();
+    drawActs(); faultUpdate(); drawVids(); drawSongs(); drawStart(); recBadge();
     drawPreview("pv");
   };
   onState();
@@ -926,7 +971,7 @@ function output() {
   document.documentElement.style.background = document.body.style.background = "transparent";
   $("#reset").classList.add("hidden"); $("#toast").style.display = "none";
   $("#app").innerHTML = '<div id="pgm" style="position:fixed;inset:0"></div>';
-  const draw = () => gfx($("#pgm"), ovView()); onState = draw; draw(); setInterval(draw, 500);
+  const draw = () => gfx($("#pgm"), { ...ovView(), song: sgView() }); onState = draw; draw(); setInterval(draw, 500);
 }
 ({ control, studio, prompter, viewer, output }[role] || landing)();
 </script>
