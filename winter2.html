@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B192C">
+<title>BHRT Studio System</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{--navy:#0B192C;--blue:#003366;--gold:#FFCC00;--ink:#070f1b;--line:#1d3557}
+  html,body{background:var(--ink);color:#e8eef7;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+  .panel{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .btn{background:var(--blue);border:1px solid #1a4f8a;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;transition:background .15s}
+  .btn:hover{background:#0a4a8c}.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .btn.gold{background:var(--gold);color:#0B192C;border-color:var(--gold)}.btn.gold:hover{background:#ffd93d}
+  .btn.red{background:#b3001b;border-color:#e0002a}.btn.red:hover{background:#d4001f}
+  .field{background:#06101f;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;color:#fff}
+  h2{font-weight:700;color:var(--gold);margin-bottom:10px}
+  th{text-align:left;color:#8fa8c8;font-weight:600;padding:6px 8px}td{padding:8px}
+  tr.act td{background:rgba(255,204,0,.14);color:#fff}tr.act td:first-child{box-shadow:inset 4px 0 var(--gold)}
+  .scr{position:relative;overflow:hidden;height:100%}
+  #pt-text{position:absolute;left:6%;right:6%;top:0;will-change:transform;font-weight:600;line-height:1.35}
+  #pt-text p{margin:0 0 .7em}
+  .cue{color:#06101f;background:var(--gold);padding:0 .4em;border-radius:6px;font-size:.7em;display:inline-block}
+  .time{color:#6fb7ff;font-variant-numeric:tabular-nums}.note{color:#9aa9bd;font-style:italic;font-size:.8em}
+  .stage{contain:layout paint;aspect-ratio:16/9;background:linear-gradient(135deg,#12294a,#050b14);border-radius:10px;position:relative;overflow:hidden;border:1px solid var(--line)}
+  :root{--ease:cubic-bezier(.2,.8,.2,1)}
+  /* ---- broadcast graphics: sized in container units so preview == program ---- */
+  .gfx{position:absolute;inset:0;container-type:size;pointer-events:none;font-family:"Barlow Semi Condensed","Segoe UI",sans-serif}
+  .lt{position:absolute;left:5cqw;bottom:12cqw;display:grid;grid-template-columns:.9cqw auto;opacity:0;transform:translateX(-6cqw);
+      filter:drop-shadow(0 1cqw 2cqw rgba(0,0,0,.5));transition:transform .5s var(--ease),opacity .35s}
+  .lt.in{opacity:1;transform:none}.lt.out{opacity:0;transform:translateX(-3cqw);transition-duration:.3s}
+  .lt::before{content:"";background:linear-gradient(var(--gold),#ff9d00);transform:scaleY(0);transform-origin:bottom;transition:transform .45s var(--ease)}
+  .lt.in::before{transform:none}
+  .lt .card{padding:1.1cqw 2.6cqw 1.2cqw 1.8cqw;border-radius:0 .9cqw .9cqw 0;background:linear-gradient(100deg,rgba(7,15,27,.96),rgba(0,51,102,.94));
+      clip-path:inset(0 100% 0 0);transition:clip-path .6s var(--ease) .1s}
+  .lt.in .card{clip-path:inset(0)}
+  .lt .name{font-weight:800;font-size:3.4cqw;line-height:1.05;color:#fff}
+  .lt .role{font-weight:500;font-size:1.75cqw;line-height:1.25;margin-top:.45cqw;color:#cfe0f5}
+  .lt .role.bs{color:var(--gold)}.lt .role:empty{display:none}
+  .lt[data-lang=en] .bs,.lt[data-lang=bs] .en{display:none}
+  .lt[data-lang=alt] .roles{display:grid}.lt[data-lang=alt] .role{grid-area:1/1;animation:swap 10s infinite}
+  .lt[data-lang=alt] .role.bs{animation-delay:-5s}
+  @keyframes swap{0%,42%{opacity:1}50%,92%{opacity:0}100%{opacity:1}}
+  .tk{position:absolute;left:0;right:0;bottom:0;height:5.2cqw;display:flex;overflow:hidden;background:linear-gradient(90deg,#06101f,var(--navy));
+      border-top:.25cqw solid var(--gold);transform:translateY(100%);transition:transform .4s var(--ease)}
+  .tk.in{transform:none}
+  .tk-label{background:var(--gold);color:var(--navy);font-weight:800;font-size:1.7cqw;padding:0 2cqw;display:grid;place-items:center}
+  .tk-track{flex:1;overflow:hidden;display:flex;align-items:center}
+  .tk-track span{display:inline-block;white-space:nowrap;padding-left:100%;color:#fff;font-weight:500;font-size:2cqw;animation:tk 22s linear infinite}
+  @keyframes tk{to{transform:translateX(-100%)}}
+  .tally{position:absolute;top:2%;left:2%;font:700 12px system-ui;padding:3px 8px;border-radius:5px;background:#475569;color:#fff}
+  .tally[data-s=air]{background:#c1121f}
+  /* ---- category chips (type of programme) ---- */
+  .chip{display:inline-block;margin-left:.3em;padding:.1em .6em;border-radius:.5em;background:hsl(var(--h,45) 65% 38%);color:#fff;font-size:.75em;font-weight:700;white-space:nowrap}
+  .chip.live{background:#c1121f}.chip.live::before{content:"";display:inline-block;width:.5em;height:.5em;margin-right:.4em;border-radius:50%;background:#fff;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  /* ---- full-screen schedule board (viewer + output), paged ---- */
+  .board{position:fixed;inset:0;z-index:20;display:none;flex-direction:column;gap:2vh;padding:4vh 5vw 3vh;container-type:size;color:#fff;
+         background:radial-gradient(120% 90% at 0% 0%,#12294a,#050b14);font-family:"Barlow Semi Condensed","Segoe UI",sans-serif}
+  .board.on{display:flex}
+  .b-head{display:flex;align-items:center;gap:3cqmin;height:15cqh}
+  .b-head img{height:100%;max-width:22cqw;object-fit:contain}
+  .b-title{font-size:5.2cqmin;font-weight:800;color:var(--gold);line-height:1.05}.b-sub{font-size:2.6cqmin;color:#cfe0f5}
+  .b-clock{margin-left:auto;text-align:right}#bclk{font-size:8cqmin;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}#bdate{font-size:2.4cqmin;color:#cfe0f5}
+  .b-list{flex:1;min-height:0;display:grid;grid-template-rows:repeat(6,1fr);gap:1.2cqh}
+  .b-list.flip{animation:bflip .45s var(--ease)}@keyframes bflip{from{opacity:0;transform:translateY(2cqh)}to{opacity:1;transform:none}}
+  .b-row{display:grid;grid-template-columns:15cqmin 1fr auto;align-items:center;gap:3cqmin;padding:0 3cqmin;min-height:0;overflow:hidden;
+         border-radius:1.4cqmin;border-left:1cqmin solid transparent;background:rgba(255,255,255,.06)}
+  .b-row.act{background:var(--gold);color:var(--navy);border-left-color:#fff}.b-row.past{opacity:.45}
+  .b-time{font-size:4.6cqmin;font-weight:800;font-variant-numeric:tabular-nums}
+  .b-main{min-width:0}.b-t{font-size:3.8cqmin;font-weight:800;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-s{font-size:2.2cqmin;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-chips{display:flex;gap:1cqmin;justify-content:flex-end}.board .chip{font-size:2cqmin;margin:0}
+  .b-foot{height:4cqh;display:flex;align-items:center;justify-content:center;gap:1.2cqmin;font-size:2cqmin;color:#9aa9bd}
+  .b-foot i{width:1.6cqmin;height:1.6cqmin;border-radius:50%;background:#33507a}.b-foot i.on{background:var(--gold)}
+  /* ---- intro layer ---- */
+  .intro{position:fixed;inset:0;z-index:30;background:#000;display:none}.intro.on{display:block}
+  .intro video{width:100%;height:100%;object-fit:cover}
+  .intro.sting video{display:none}
+  .intro.sting::after{content:"";position:absolute;inset:0;background:var(--logo) center/28% no-repeat,linear-gradient(120deg,#050b14,#0B192C);animation:sting 4s var(--ease) both}
+  @keyframes sting{from{opacity:0;transform:scale(.92)}20%,85%{opacity:1;transform:none}to{opacity:0}}
+  /* ===== v2: iPad / touch, polish ===== */
+  html{-webkit-text-size-adjust:100%}
+  body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  @supports (height:100dvh){.h-screen{height:100dvh}.min-h-screen{min-height:100dvh}}
+  .safe-t{padding-top:max(.5rem,env(safe-area-inset-top))}
+  .panel{background:linear-gradient(180deg,#0e2036,#0B192C);box-shadow:0 8px 24px -14px rgba(0,0,0,.7)}
+  h2{font-size:.78rem;letter-spacing:.09em;text-transform:uppercase}
+  .btn{user-select:none;-webkit-user-select:none;touch-action:manipulation}.btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  @media (pointer:coarse){.btn{min-height:44px}.field{min-height:44px;font-size:16px}input[type=range]{height:32px}}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#24446e;border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+  .pill{display:inline-flex;align-items:center;gap:.4em;padding:.15em .7em;border-radius:999px;font-weight:700;font-size:.8rem;background:#1d3557;color:#cfe0f5;white-space:nowrap}
+  .pill.red{background:#c1121f;color:#fff}.pill.gold{background:var(--gold);color:var(--navy)}.pill.green{background:#13795b;color:#fff}
+  .fdot{width:.7em;height:.7em;border-radius:50%;background:#fff;animation:pulse 1s ease-in-out infinite;display:inline-block}
+  /* ---- fullscreen "show starts" countdown (output) ---- */
+  .cd{position:fixed;inset:0;z-index:25;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4vh 4vw;color:#fff;
+      background:radial-gradient(120% 90% at 50% 0%,#12294a,#050b14);font-family:"Barlow Semi Condensed","Segoe UI",sans-serif}
+  .cd.on{display:flex}
+  .cd img{height:11vh;margin-bottom:4vh}.cd .bar{width:12vw;height:.8vh;background:var(--gold);margin-bottom:4vh}
+  .cd h1{margin:0;font-size:6.5vh;font-weight:800;color:var(--gold);line-height:1.05}
+  .cd p{font-size:3vh;margin:1vh 0 0;max-width:70vw;color:#e8eef7}.cd .bsb{margin-top:4vh}
+  .cd .big{font-size:22vh;font-weight:800;line-height:1;margin-top:4vh;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .cd .at{margin-top:2vh;font-size:3.4vh;color:#cfe0f5}.cd.live .big{color:#3ddc97}
+  /* ---- video bank (several clips at once, output) ---- */
+  .vb{position:fixed;inset:0;z-index:22;display:none;gap:.5vmin;background:#000}.vb.on{display:grid}
+  .vbv{width:100%;height:100%;min-width:0;min-height:0;object-fit:contain;background:#000;display:none}
+  /* ---- recording preview ---- */
+  .rcbox{position:absolute;z-index:15;right:12px;top:16px;width:min(28%,220px);aspect-ratio:16/9;border-radius:10px;overflow:hidden;border:2px solid #475569;background:#000;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+  .rcbox.rcin{position:relative;right:auto;top:auto;width:100%;max-width:280px;margin-top:8px}
+  .rcbox.rec{border-color:#e0002a}.rcbox video{width:100%;height:100%;object-fit:cover}.rcbox video.mir{transform:scaleX(-1)}
+  .rcbox .rt{position:absolute;left:6px;top:6px;font:700 11px system-ui;background:#c1121f;color:#fff;border-radius:4px;padding:1px 6px;display:none}.rcbox.rec .rt{display:block}
+  /* ---- prompter ---- */
+  #ptmirror.mir{transform:scaleX(-1)}
+  .pt-band{position:absolute;left:0;right:0;top:38%;height:0;z-index:5;pointer-events:none}
+  .pt-band::before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;background:rgba(255,204,0,.45)}
+  .pt-band i{position:absolute;top:-13px;border:13px solid transparent}.pt-band i.l{left:0;border-left-color:var(--gold)}.pt-band i.r{right:0;border-right-color:var(--gold)}
+  .pt-fade{position:absolute;left:0;right:0;height:20%;z-index:4;pointer-events:none}
+  .pt-fade.t{top:0;background:linear-gradient(#000,transparent)}.pt-fade.b{bottom:0;background:linear-gradient(transparent,#000)}
+  .ptprog{position:absolute;left:0;right:0;top:0;height:5px;background:#12294a;z-index:19}.ptprog i{display:block;height:100%;width:0;background:var(--gold)}
+  .ptctl{position:absolute;z-index:18;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:10px 12px;border-radius:16px;background:rgba(7,15,27,.9);border:1px solid var(--line);backdrop-filter:blur(8px);transition:opacity .3s,transform .3s;max-width:96%}
+  .ptctl.hid{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
+  .ptctl .btn{min-width:48px;min-height:48px;font-size:1.05rem}
+  .ptctl .grp{display:flex;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line)}.ptctl .grp:first-child{border:0;padding:0}
+  .ptctl .val{min-width:3.2ch;text-align:center;font-variant-numeric:tabular-nums;font-weight:700}
+</style>
+</head>
+<body class="min-h-screen">
+<div id="app"></div>
+<button id="reset" style="top:max(8px,env(safe-area-inset-top))" class="fixed right-2 z-50 text-xs bg-black/50 border border-slate-600 rounded px-2 py-1 hover:border-yellow-400">Reset role</button>
+<div id="toast" class="fixed bottom-3 left-3 z-50 text-xs bg-black/70 rounded px-3 py-1 hidden"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set, update, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+/* ===== FIREBASE CONFIG — replace with your own project values if needed ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBu9VM10UM5IhUOk-zAf-F5XrG55nrfSsk",
+  authDomain: "bewerbungen-60a63.firebaseapp.com",
+  databaseURL: "https://bewerbungen-60a63-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "bewerbungen-60a63",
+  storageBucket: "bewerbungen-60a63.firebasestorage.app",
+  messagingSenderId: "21188826929",
+  appId: "1:21188826929:web:3f33e9270b159226d80210",
+  measurementId: "G-JC01Z55TRB"
+};
+/* ========================================================================== */
+
+const LOGO = "https://upload.wikimedia.org/wikipedia/commons/d/d6/Logo_of_BHRT_%281998-%29.svg";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const toast = m => { const t = $("#toast"); t.textContent = m; t.classList.remove("hidden"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add("hidden"), 2800); };
+
+/* ---------- Role ---------- */
+const params = new URLSearchParams(location.search);
+let role = params.get("role") || localStorage.getItem("bhrt-role");
+if (!["control", "studio", "prompter", "viewer", "output"].includes(role)) role = null;
+$("#reset").onclick = () => { localStorage.removeItem("bhrt-role"); location.href = location.pathname; };
+
+/* ---------- State & Firebase ---------- */
+let st = { schedule: [], overlays: [], hosts: [], tickers: [], actions: [], viz: "bars", viewerMsg: "", show: {}, fault: false, faultMsg: {}, active: -1, script: "", pr: { playing: false, speed: 40, size: 56, anchor: 0, at: 0 }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both" }, intro: null, faultId: "", faultAt: 0, sb: {}, start: {}, clips: [], vp: {}, rec: {} };
+let off = 0, db = null, onState = () => {};
+const now = () => Date.now() + off;
+const arr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) : []);
+const put = (path, val) => db && set(ref(db, "studio/" + path), val).catch(e => toast("Write failed: " + e.message));
+const AUTO_OFF = 30000;                          // lower third and ticker leave the air automatically after 30 s
+const patch = (path, obj) => {
+  if (path === "ov") { obj = { ...obj }; if (obj.onAir) obj.at = now(); if (obj.tickerOn) obj.tickerAt = now(); }   // stamp every take with server time
+  return db && update(ref(db, "studio/" + path), obj).catch(e => toast("Write failed: " + e.message));
+};
+const ovView = () => { const o = st.ov, n = now(); return { ...o, onAir: !!o.onAir && n - (o.at || 0) < AUTO_OFF, tickerOn: !!o.tickerOn && n - (o.tickerAt || 0) < AUTO_OFF }; };
+
+try {
+  db = getDatabase(initializeApp(firebaseConfig));
+  onValue(ref(db, ".info/serverTimeOffset"), s => off = s.val() || 0);
+  onValue(ref(db, "studioAudio"), s => { const v = s.val(); if (v && v.b && !mic.on && performance.now() - bcAt > 500) setBands(Uint8Array.from(atob(v.b), c => c.charCodeAt(0))); });
+  onValue(ref(db, "studio"), s => {
+    const v = s.val() || {};
+    st = { ...st, ...v, schedule: arr(v.schedule), overlays: arr(v.overlays), hosts: arr(v.hosts), tickers: arr(v.tickers), actions: arr(v.actions), viz: v.viz || "bars", viewerMsg: v.viewerMsg || "", show: v.show || {}, fault: !!v.fault, faultMsg: v.faultMsg || {}, script: v.script || "", pr: { ...st.pr, ...(v.pr || {}) }, ov: { ...st.ov, ...(v.ov || {}) }, active: v.active ?? -1, start: v.start || {}, clips: arr(v.clips), vp: v.vp || {}, rec: v.rec || {} };
+    faultUpdate();                                   // fault first: a page render error must never block it
+    try { introUpdate(); boardUpdate(); cdUpdate(); vbankUpdate(); onState(); } catch (err) { console.error(err); }
+  }, e => toast("Database error: " + e.message));
+} catch (e) { toast("Firebase init failed: " + e.message); }
+
+/* ---------- Shared pieces ---------- */
+const header = (sub) => `<header class="flex items-center gap-4 px-4 py-3 border-b border-[#1d3557] bg-[#0B192C]"><img src="${LOGO}" alt="BHRT" class="h-10 sm:h-12"><div class="font-bold text-lg">${sub}</div><div id="conn" class="ml-auto mr-20 text-xs text-slate-400"></div></header>`;
+const GFX_HTML = `<div class="lt"><div class="card"><div class="name"></div><div class="roles"><div class="role en" lang="en"></div><div class="role bs" lang="bs"></div></div></div></div>
+  <div class="tk"><div class="tk-label">BHRT</div><div class="tk-track"><span></span></div></div>`;
+/* Idempotent: call on every state change. Keeps its DOM nodes so graphics can animate in AND out. */
+function gfx(root, s) {                       // s = { live, onAir, lang, ticker, tickerOn }
+  root.classList.add("gfx"); if (!root.firstChild) root.innerHTML = GFX_HTML;
+  const lt = $(".lt", root), tk = $(".tk", root), o = s.onAir ? s.live : null, key = o ? [o.title, o.subtitle, o.subtitle_bs].join("|") : "";
+  lt.dataset.lang = s.lang || "both";
+  if (root._key !== key) {
+    root._key = key; clearTimeout(root._t);
+    const show = () => { $(".name", lt).textContent = o.title; $(".en", lt).textContent = o.subtitle || ""; $(".bs", lt).textContent = o.subtitle_bs || ""; lt.classList.remove("out"); lt.classList.add("in"); };
+    if (lt.classList.contains("in")) { lt.classList.replace("in", "out"); if (o) root._t = setTimeout(show, 350); }
+    else if (o) show();
+  }
+  tk.classList.toggle("in", !!(s.tickerOn && s.ticker));
+  if (tk._txt !== s.ticker) { tk._txt = s.ticker; $(".tk-track span", tk).textContent = s.ticker || ""; }
+}
+let bands = new Array(64).fill(0), bcAt = 0;
+const previewBox = (id) => `<div class="stage" id="${id}"></div>`;
+const drawPreview = (id) => {                  // pure DOM/CSS
+  const el = $("#" + id); if (!el) return;
+  if (!el.firstChild) el.innerHTML = '<div class="gfx"></div><div class="tally"></div>';
+  const v = ovView(), o = v.onAir ? v.live : v.staged;   // preview shows STAGED while off air
+  gfx($(".gfx", el), { ...v, onAir: !!o, live: o });
+  const left = Math.max(0, Math.ceil((AUTO_OFF - (now() - (st.ov.at || 0))) / 1000));
+  const t = $(".tally", el); t.textContent = v.onAir ? `ON AIR · ${left}s` : o ? "STAGED" : "IDLE"; t.dataset.s = v.onAir ? "air" : "";
+};
+setInterval(() => { if ($("#pv")) drawPreview("pv"); }, 500);      // keeps the countdown and the auto-off in sync
+
+/* ---------- Small 2D level meter (bars going up and down) ---------- */
+const setBands = u8 => { bands = Array.from(u8, v => v / 2.55); };
+function mountMeter(id) {
+  const cv = $("#" + id); if (!cv) return;
+  const g = cv.getContext("2d"), NBARS = 32, cur = new Float32Array(NBARS), peak = new Float32Array(NBARS); let last = performance.now();
+  const loop = t => {
+    if (!cv.isConnected) return; requestAnimationFrame(loop); if (document.hidden) return;
+    const dt = Math.min((t - last) / 1000, .1); last = t;
+    const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h); g.fillStyle = "rgba(255,255,255,.07)"; [.25, .5, .75].forEach(y => g.fillRect(0, h * y, w, 1));
+    const bw = w / NBARS, k = 1 - Math.exp(-dt * 14), per = bands.length / NBARS;
+    for (let i = 0; i < NBARS; i++) {
+      const a = Math.floor(i * per), b = Math.max(a + 1, Math.floor((i + 1) * per)); let sum = 0; for (let j = a; j < b; j++) sum += bands[j] || 0;
+      cur[i] += (sum / (b - a) / 100 - cur[i]) * k; peak[i] = Math.max(cur[i], peak[i] - dt * .5);
+      const bh = Math.max(2, cur[i] * h); g.fillStyle = cur[i] > .85 ? "#e0002a" : cur[i] > .6 ? "#FFCC00" : "#2f7fd1";
+      g.fillRect(i * bw + 1, h - bh, bw - 2, bh); g.fillStyle = "#fff"; g.fillRect(i * bw + 1, h - peak[i] * h - 2, bw - 2, 2);
+    }
+  };
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Schedule board: full-screen, paged, same page on every screen ---------- */
+const ROWS = 6, PAGE_MS = 8000;               // rows per page, seconds per page
+const hue = t => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const chips = r => {                          // r.type / r.type_bs = kind of programme; r.live = true (or "live" in details) adds a LIVE tag
+  const live = r.live || /\blive\b/i.test(r.details || ""), t = r.type ? esc(r.type) + (r.type_bs ? " / " + esc(r.type_bs) : "") : "";
+  return (t ? `<span class="chip" style="--h:${hue(r.type)}">${t}</span>` : "") + (live && !/^live$/i.test(r.type || "") ? '<span class="chip live">LIVE</span>' : "");
+};
+const boardEl = Object.assign(document.createElement("div"), { className: "board",
+  innerHTML: `<div class="b-head"><img src="${LOGO}" alt="BHRT"><div><div class="b-title"></div><div class="b-sub"></div></div><div class="b-clock"><div id="bclk"></div><div id="bdate"></div></div></div><div class="b-list"></div><div class="b-foot"></div>` });
+document.body.appendChild(boardEl);
+let boardKey = "", boardPg = -1;
+function boardUpdate() {
+  if (!["output", "viewer"].includes(role)) return;
+  const sb = st.sb || {}, on = !!sb.on; boardEl.classList.toggle("on", on); if (!on) { boardPg = -1; boardKey = ""; return; }
+  const pages = Math.max(1, Math.ceil(st.schedule.length / ROWS));
+  const pg = pages > 1 ? Math.floor(Math.max(0, now() - (sb.at || 0)) / PAGE_MS) % pages : 0;   // time-based → all screens flip together
+  const rows = st.schedule.slice(pg * ROWS, pg * ROWS + ROWS), key = [pg, pages, st.active, st.show.title, st.show.title_bs, JSON.stringify(rows)].join("|");
+  if (key !== boardKey) {
+    boardKey = key; const list = $(".b-list", boardEl);
+    $(".b-title", boardEl).textContent = st.show.title || "Programme"; $(".b-sub", boardEl).textContent = st.show.title_bs || "Program";
+    list.innerHTML = rows.length ? rows.map((r, k) => { const i = pg * ROWS + k;
+      return `<div class="b-row${i === st.active ? " act" : i < st.active ? " past" : ""}"><div class="b-time">${esc(r.time)}</div><div class="b-main"><div class="b-t">${esc(r.title)}</div>${r.title_bs || r.details ? `<div class="b-s">${esc(r.title_bs || r.details)}</div>` : ""}</div><div class="b-chips">${chips(r)}</div></div>`; }).join("")
+      : '<div class="b-s">No schedule published yet. / Program još nije objavljen.</div>';
+    $(".b-foot", boardEl).innerHTML = pages > 1 ? Array.from({ length: pages }, (_, q) => `<i class="${q === pg ? "on" : ""}"></i>`).join("") + `<span>${pg + 1} / ${pages}</span>` : "";
+    if (pg !== boardPg) { list.classList.remove("flip"); void list.offsetWidth; list.classList.add("flip"); boardPg = pg; }
+  }
+  const d = new Date(now());
+  $("#bclk").textContent = d.toLocaleTimeString("en-GB"); $("#bdate").textContent = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}
+setInterval(boardUpdate, 500);
+
+/* ---------- Intro: starts on the same server tick on every program screen ---------- */
+const introLayer = document.body.appendChild(Object.assign(document.createElement("div"), { className: "intro", innerHTML: "<video playsinline preload='auto'></video>" }));
+introLayer.style.setProperty("--logo", `url(${LOGO})`);
+let introId = null;
+const stopIntro = () => { introLayer.classList.remove("on", "sting"); $("video", introLayer).pause(); };
+function introUpdate() {
+  const i = st.intro; if (!i || !["output", "viewer"].includes(role)) return;
+  if (i.state === "stop") return stopIntro();
+  if (i.id === introId) return; introId = i.id;
+  const wait = Math.max(0, i.startAt - now());
+  if (!i.url) {                                // no video URL → built-in 4 s logo sting
+    if (now() - i.startAt > 4200) return;
+    setTimeout(() => { introLayer.classList.add("on", "sting"); setTimeout(stopIntro, 4200); }, wait); return;
+  }
+  const v = $("video", introLayer); v.muted = role !== "output"; v.src = i.url;
+  v.onloadedmetadata = () => setTimeout(() => {
+    const t = (now() - i.startAt) / 1000; if (t >= v.duration) return;     // late joiner after the end: skip
+    v.currentTime = Math.max(0, t); introLayer.classList.add("on"); v.play().catch(() => toast("Click once to arm intro audio"));
+  }, wait);
+  v.onended = stopIntro;
+}
+
+/* ---------- Technical-fault screen: topmost layer on EVERY role, inline styles only (no CDN dependency) ---------- */
+const vbs = new Map(); let vbSeq = 0;
+const readyIds = () => { const a = [...vbs].filter(([, o]) => o.ready).map(([id]) => id); return a.length ? a : null; };
+const cid = crypto.randomUUID().slice(0, 8);
+const bcF = new BroadcastChannel("bhrt-fault");
+const faultSet = on => { const id = crypto.randomUUID(); bcF.postMessage({ on, id }); patch("", { fault: on, faultAt: now(), faultId: id }); };
+bcF.onmessage = e => { st.fault = e.data.on; st.faultId = e.data.id; faultUpdate(); };   // other tabs on this PC: instant
+if (db) onValue(ref(db, ".info/connected"), s => { if (!s.val()) return;
+  const p = ref(db, "studioPresence/" + cid); onDisconnect(p).remove(); set(p, { role: role || "landing", t: serverTimestamp(), rdy: readyIds() }).catch(() => { }); });
+const ackFault = () => db && st.faultId && set(ref(db, `studioAck/${st.faultId}/${cid}`), { role: role || "landing", t: now() }).catch(() => { });
+let nOn = 0, nOut = 0, rdy = {}, offAck = () => { }, ackFor = "", onVid = () => { };
+if (db && role === "control") onValue(ref(db, "studioPresence"), s => { const v = s.val() || {}, o = Object.values(v).filter(x => x.role === "output"); nOn = Object.keys(v).length; nOut = o.length; rdy = {}; o.forEach(x => arr(x.rdy).forEach(id => rdy[id] = (rdy[id] || 0) + 1)); onVid(); });
+const watchAck = () => { if (ackFor === st.faultId) return; ackFor = st.faultId; offAck();
+  if (db && st.fault && st.faultId) offAck = onValue(ref(db, "studioAck/" + st.faultId), s => { const b = $("#fback"); if (b) b.textContent = `${Object.keys(s.val() || {}).length}/${nOn} screens confirmed`; }); };
+
+let ctlBig = false;                              // control room: fault screen enlarged to full screen (local only)
+const faultClear = () => confirm("Return to programme on ALL screens?") && faultSet(false);
+const faultEl = Object.assign(document.createElement("div"), { id: "fault" });
+faultEl.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4vh 4vw;background:radial-gradient(120% 90% at 50% 0%,#12294a,#050b14);color:#fff;font-family:'Barlow Semi Condensed','Segoe UI',sans-serif";
+document.body.appendChild(faultEl);
+let faultShown = false, faultVis = false, faultKey = "";
+const clockStr = () => new Date(now()).toLocaleTimeString("en-GB");     // server-corrected: identical second on every screen
+const faultUpdate = () => {
+  const on = !!st.fault, m = st.faultMsg || {}, vis = on && (role !== "control" || ctlBig);   // control room only sees a small hint unless enlarged
+  if (on !== faultShown) {
+    faultShown = on;
+    if (on) { if (role !== "control") { document.querySelectorAll("video:not(#rcpv),audio").forEach(x => x.pause()); stopIntro(); } ackFault(); } else ctlBig = false;
+  }
+  if (vis !== faultVis) { faultVis = vis; faultEl.style.display = vis ? "flex" : "none"; $("#app").inert = vis; faultKey = ""; }
+  if (on && role === "control") watchAck();
+  if (vis) {
+    const key = st.faultId + "|" + (m.en || "") + "|" + (m.bs || "");
+    if (key !== faultKey) {
+      faultKey = key;
+      faultEl.innerHTML = `<img src="${LOGO}" alt="BHRT" style="height:11vh;margin-bottom:5vh"><div style="width:12vw;height:.8vh;background:#e0002a;margin-bottom:5vh"></div>
+        <h1 lang="en" style="margin:0;font-size:7vh;font-weight:800;color:#FFCC00">Technical difficulties</h1>
+        <p lang="en" style="font-size:3vh;margin:1vh 0 0;max-width:70vw">${esc(m.en || "We are experiencing technical difficulties. Please stand by.")}</p>
+        <h1 lang="bs" style="margin:5vh 0 0;font-size:7vh;font-weight:800;color:#FFCC00">Tehničke poteškoće</h1>
+        <p lang="bs" style="font-size:3vh;margin:1vh 0 0;max-width:70vw">${esc(m.bs || "Imamo tehničkih poteškoća. Molimo vas za malo strpljenja.")}</p>
+        <div id="fclk" style="font-size:16vh;font-weight:800;color:#ff3b4e;margin-top:5vh;font-variant-numeric:tabular-nums">${clockStr()}</div>
+        ${role === "control" ? '<div style="position:fixed;bottom:2vh;right:2vw;display:flex;gap:1vw"><button id="fmin" style="padding:1.2vh 2vw;font-size:2.4vh;font-weight:700;background:#1d3557;color:#fff;border:0;border-radius:8px;cursor:pointer">Minimize</button><button id="fclear" style="padding:1.2vh 2vw;font-size:2.4vh;font-weight:700;background:#fff;color:#0B192C;border:0;border-radius:8px;cursor:pointer">Clear fault screen</button></div>' : ""}`;
+      const cb = $("#fclear"); if (cb) cb.onclick = faultClear;
+      const mb = $("#fmin"); if (mb) mb.onclick = () => { ctlBig = false; faultUpdate(); };
+    }
+  }
+  const b = $("#fbanner"); if (b) b.classList.toggle("hidden", !st.fault);
+  const fp = $("#fpill"); if (fp) fp.classList.toggle("hidden", !st.fault);
+  const fb = $("#faultbtn"); if (fb) fb.textContent = st.fault ? "Clear fault screen [S]" : "FAULT SCREEN (all screens) [S]";
+};
+setInterval(() => { const a = $("#fclk"), b = $("#fbtime"); if (a) a.textContent = clockStr(); if (b) b.textContent = clockStr(); }, 250);
+setInterval(() => { if (faultVis && (!faultEl.isConnected || faultEl.style.display === "none")) { document.body.appendChild(faultEl); faultShown = false; faultVis = false; faultKey = ""; faultUpdate(); } }, 500);   // self-heal
+/* Key S toggles the fault screen on crew screens (not on viewer/output). ON is instant, OFF asks for confirmation. */
+document.addEventListener("keydown", e => {
+  if (!["control", "studio", "prompter"].includes(role) || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key.toLowerCase() === "s") { e.preventDefault(); st.fault ? faultClear() : faultSet(true); }
+});
+
+/* ---------- Show start: countdown (output fullscreen, control + studio small) ---------- */
+const pad2 = n => String(n).padStart(2, "0");
+const fmtCd = ms => { const t = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ":" : "") + pad2(m) + ":" + pad2(s); };
+const fmtEl = ms => { const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ":" : "") + pad2(m) + ":" + pad2(s); };
+const hhmm = ms => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const SS = () => { const s = st.start || {}; return s.on && s.at ? { ...s, left: s.at - now() } : null; };
+const cdEl = Object.assign(document.createElement("div"), { className: "cd" }); document.body.appendChild(cdEl);
+let cdKey = "";
+function cdUpdate() {
+  const s = SS(), on = role === "output" && !!s && !!s.full && s.left > -8000 && !st.fault;
+  cdEl.classList.toggle("on", on); if (!on) { cdKey = ""; return; }
+  const live = s.left <= 0, key = [live, s.en, s.bs, s.at].join("|");
+  cdEl.classList.toggle("live", live);
+  if (key !== cdKey) {
+    cdKey = key;
+    cdEl.innerHTML = `<img src="${LOGO}" alt="BHRT"><div class="bar"></div>
+      <h1 lang="en">${live ? "We are live!" : "The show starts soon"}</h1><p lang="en">${esc(s.en || (live ? "Welcome — we are on air." : "Please stand by. We will be on air shortly."))}</p>
+      <h1 lang="bs" class="bsb">${live ? "Uživo smo!" : "Emisija uskoro počinje"}</h1><p lang="bs">${esc(s.bs || (live ? "Dobrodošli — u eteru smo." : "Molimo vas za malo strpljenja. Uskoro smo u eteru."))}</p>
+      <div class="big"></div><div class="at">${live ? "" : "Starts at / Početak u " + hhmm(s.at)}</div>`;
+  }
+  $(".big", cdEl).textContent = live ? "LIVE" : fmtCd(s.left);
+}
+setInterval(cdUpdate, 250);
+
+/* ---------- Video bank (output): several clips preloaded and played simultaneously, synced to server time ---------- */
+const vb = Object.assign(document.createElement("div"), { className: "vb" }); document.body.appendChild(vb);
+const reportReady = () => { if (db && role === "output") update(ref(db, "studioPresence/" + cid), { rdy: readyIds() }).catch(() => { }); };
+function vbLayout() {
+  const on = [...vbs.values()].filter(o => o.on).sort((a, b) => a.seq - b.seq), n = on.length;
+  for (const o of vbs.values()) { o.el.style.display = o.on ? "block" : "none"; o.el.style.gridColumn = ""; }
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 6 ? 3 : 4, rows = Math.max(1, Math.ceil(n / cols));
+  on.forEach((o, i) => { o.el.style.order = i; o.el.style.objectFit = n === 1 ? "cover" : "contain"; });
+  if (n > 1 && n % cols) on[n - 1].el.style.gridColumn = `span ${cols - (n % cols) + 1}`;
+  vb.style.gridTemplateColumns = `repeat(${cols},1fr)`; vb.style.gridTemplateRows = `repeat(${rows},1fr)`;
+  vb.classList.toggle("on", n > 0 && !st.fault);
+}
+function vbankUpdate() {
+  if (role !== "output") return;
+  const ids = new Set(st.clips.map(c => c.id));
+  for (const [id, o] of vbs) if (!ids.has(id)) { clearTimeout(o.t); o.el.pause(); o.el.removeAttribute("src"); o.el.remove(); vbs.delete(id); reportReady(); }
+  for (const c of st.clips) {
+    let o = vbs.get(c.id);
+    if (!o) {
+      const el = document.createElement("video"); el.className = "vbv"; el.playsInline = true; el.preload = "auto"; el.muted = true;
+      o = { el, pid: null, on: false, ready: false, seq: 0, t: 0 }; vbs.set(c.id, o); vb.appendChild(el);
+      const me = o, chk = () => { if (!me.ready && el.readyState >= 3) { me.ready = true; reportReady(); } };
+      ["canplay", "canplaythrough", "loadeddata"].forEach(ev => el.addEventListener(ev, chk));
+      el.onerror = () => toast("Video failed to load: " + c.name);
+      el.onended = () => { me.on = false; vbLayout(); };
+      el.src = c.url; el.load();
+    }
+    const p = st.vp[c.id] || {}, want = !!p.on && !st.fault;
+    if (want && o.pid !== p.pid) {
+      const me = o; me.pid = p.pid; me.on = false; clearTimeout(me.t);
+      const begin = () => {
+        const el = me.el, t = (now() - p.startAt) / 1000, d = el.duration;
+        if (!p.loop && d && t >= d) return;                    // late joiner after the end
+        el.loop = !!p.loop; el.muted = !p.audio;
+        el.currentTime = t > .15 ? (p.loop && d ? t % d : t) : 0;
+        me.seq = ++vbSeq; me.on = true; vbLayout();
+        el.play().catch(() => { el.muted = true; el.play().catch(() => { }); if (p.audio) toast("Click once to arm video audio"); });
+      };
+      me.t = setTimeout(() => me.el.readyState >= 1 ? begin() : me.el.addEventListener("loadedmetadata", begin, { once: true }), Math.max(0, p.startAt - now()));
+    } else if (!want && (o.pid || o.on)) {
+      clearTimeout(o.t); o.el.pause(); o.on = false; o.pid = null; try { o.el.currentTime = 0; } catch { }
+    }
+  }
+  vbLayout();
+}
+
+/* ---------- Recording (studio + prompter): camera + mic → MediaRecorder → save / share (iPad-ready) ---------- */
+const REC = { on: false, s: null, raw: null, mr: null, chunks: [], t0: 0, url: null, blob: null, name: "", mime: "", facing: "user" };
+const recMime = () => window.MediaRecorder ? ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(m => MediaRecorder.isTypeSupported(m)) || "" : "";
+const recHTML = `<div class="flex items-center gap-2 flex-wrap">
+  <button class="btn py-1 text-sm rc-cam">Camera on</button><button class="btn py-1 text-sm rc-flip" title="Front / back camera">⟲ Flip</button>
+  <button class="btn gold py-1 text-sm rc-btn">● Record</button><span class="rc-time tabular-nums text-sm text-slate-300"></span></div>
+  <div class="rc-save hidden mt-2 text-sm flex flex-wrap items-center gap-2"></div>`;
+let recPaint = () => { };
+async function recCamOn() {
+  if (REC.s) return;
+  const v = await navigator.mediaDevices.getUserMedia({ video: { facingMode: REC.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: mic.on ? false : { echoCancellation: true, noiseSuppression: true } });
+  REC.raw = v; REC.s = new MediaStream([...v.getTracks(), ...(mic.on && mic.s ? mic.s.getAudioTracks().map(t => t.clone()) : [])]);
+  v.getVideoTracks()[0].onended = () => { if (REC.on) recStop(); recCamOff(); recPaint(); };
+}
+function recCamOff() { REC.s && REC.s.getTracks().forEach(t => t.stop()); REC.raw && REC.raw.getTracks().forEach(t => t.stop()); REC.s = REC.raw = null; }
+async function recStart() {
+  await recCamOn(); const mime = recMime(), o = { videoBitsPerSecond: 5e6 }; if (mime) o.mimeType = mime;
+  REC.chunks = []; REC.mr = new MediaRecorder(REC.s, o); REC.mime = REC.mr.mimeType || mime || "video/webm";
+  REC.mr.ondataavailable = e => e.data && e.data.size && REC.chunks.push(e.data);
+  REC.mr.onstop = () => {
+    REC.on = false; const type = REC.mime.split(";")[0]; REC.blob = new Blob(REC.chunks, { type }); REC.chunks = [];
+    if (REC.url) URL.revokeObjectURL(REC.url); REC.url = URL.createObjectURL(REC.blob);
+    REC.name = `BHRT-${role}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${/mp4/.test(type) ? "mp4" : "webm"}`;
+    put("rec/" + role, false); recPaint();
+  };
+  REC.mr.start(1000); REC.on = true; REC.t0 = Date.now(); REC.blob = null;
+  if (db) { onDisconnect(ref(db, "studio/rec/" + role)).remove(); put("rec/" + role, true); }
+}
+const recStop = () => REC.mr && REC.mr.state !== "inactive" && REC.mr.stop();
+function recMount() {
+  const all = q => document.querySelectorAll(q), box = $("#rcbox"), pv = $("#rcpv");
+  recPaint = () => {
+    all(".rc-btn").forEach(b => { b.textContent = REC.on ? "■ Stop" : "● Record"; b.classList.toggle("red", REC.on); b.classList.toggle("gold", !REC.on); });
+    all(".rc-cam").forEach(b => { b.textContent = REC.s ? "Camera off" : "Camera on"; b.disabled = REC.on; });
+    all(".rc-flip").forEach(b => b.disabled = REC.on);
+    if (box) { box.classList.toggle("hidden", !REC.s); box.classList.toggle("rec", REC.on); }
+    if (pv) { if (pv.srcObject !== REC.s) pv.srcObject = REC.s; pv.classList.toggle("mir", REC.facing === "user"); if (REC.s) pv.play().catch(() => { }); }
+    all(".rc-save").forEach(d => {
+      if (!REC.blob || REC.on) return d.classList.add("hidden");
+      d.classList.remove("hidden");
+      d.innerHTML = `<span class="text-emerald-300">✓ ${esc(REC.name)} · ${(REC.blob.size / 1048576).toFixed(1)} MB</span><button class="btn gold py-1 rc-dl">Save</button>${navigator.canShare ? '<button class="btn py-1 rc-sh">Share</button>' : ""}`;
+    });
+  };
+  const err = m => e => toast(m + e.message + " (needs HTTPS and permission)");
+  all(".rc-cam").forEach(b => b.onclick = async () => { try { REC.s ? recCamOff() : await recCamOn(); } catch (e) { err("Camera unavailable: ")(e); } recPaint(); });
+  all(".rc-flip").forEach(b => b.onclick = async () => { REC.facing = REC.facing === "user" ? "environment" : "user"; if (REC.s) { recCamOff(); try { await recCamOn(); } catch (e) { err("Camera unavailable: ")(e); } } recPaint(); });
+  all(".rc-btn").forEach(b => b.onclick = async () => { try { REC.on ? recStop() : await recStart(); } catch (e) { err("Recording failed: ")(e); } recPaint(); });
+  setInterval(() => { const t = REC.on ? fmtEl(Date.now() - REC.t0) : ""; all(".rc-time").forEach(e => e.textContent = t); const r = $("#rcpt"); if (r) r.textContent = t; }, 500);
+  document.addEventListener("click", async e => {
+    if (e.target.closest(".rc-dl") && REC.url) { const a = Object.assign(document.createElement("a"), { href: REC.url, download: REC.name }); document.body.appendChild(a); a.click(); a.remove(); }
+    else if (e.target.closest(".rc-sh") && REC.blob) { try { await navigator.share({ files: [new File([REC.blob], REC.name, { type: REC.blob.type })], title: REC.name }); } catch (x) { if (x.name !== "AbortError") toast("Share failed: " + x.message); } }
+  });
+  recPaint();
+}
+
+/* ---------- iPad helpers: keep screen awake, fullscreen button ---------- */
+let wl = null;
+const wake = async () => { try { if (navigator.wakeLock && !document.hidden) wl = await navigator.wakeLock.request("screen"); } catch { } };
+document.addEventListener("visibilitychange", () => { if (!document.hidden && ["studio", "prompter", "output", "control"].includes(role)) wake(); });
+document.addEventListener("pointerdown", () => { if (!wl) wake(); }, { once: true });
+function fsInit() {
+  const b = $("#fsb"); if (!b) return; const de = document.documentElement, req = de.requestFullscreen || de.webkitRequestFullscreen;
+  if (!req) return b.remove();
+  b.onclick = () => (document.fullscreenElement || document.webkitFullscreenElement) ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : req.call(de);
+}
+
+/* ---------- Microphone: 64 log-spaced bands (40 Hz–16 kHz), 25 Hz, to all screens ---------- */
+const mic = { on: false };
+const NB = 64, bcA = new BroadcastChannel("bhrt-audio");
+bcA.onmessage = e => { bcAt = performance.now(); setBands(e.data); };       // same-PC windows: no network hop
+const pubBands = u8 => { bcA.postMessage(u8); db && set(ref(db, "studioAudio"), { b: btoa(String.fromCharCode(...u8)), t: now() }).catch(() => { }); };
+const micToggle = async dev => {
+  if (mic.on) { mic.s.getTracks().forEach(t => t.stop()); mic.ctx.close(); clearInterval(mic.iv); mic.on = false; const z = new Uint8Array(NB); setBands(z); return pubBands(z); }
+  mic.s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: dev ? { exact: dev } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 } });
+  mic.ctx = new AudioContext({ latencyHint: "interactive" });
+  const an = mic.ctx.createAnalyser(); an.fftSize = 4096; an.smoothingTimeConstant = .6; an.minDecibels = -90; an.maxDecibels = -10;
+  mic.ctx.createMediaStreamSource(mic.s).connect(an);
+  const f = new Uint8Array(an.frequencyBinCount), u8 = new Uint8Array(NB);
+  const edges = Array.from({ length: NB + 1 }, (_, i) => 40 * Math.pow(16000 / 40, i / NB));
+  const bin = hz => Math.min(f.length - 1, Math.round(hz / (mic.ctx.sampleRate / 2) * (f.length - 1)));
+  mic.on = true;
+  mic.iv = setInterval(() => {
+    an.getByteFrequencyData(f);
+    for (let i = 0; i < NB; i++) { const a = bin(edges[i]), b = Math.max(bin(edges[i + 1]), a + 1); let sum = 0; for (let k = a; k < b; k++) sum += f[k]; u8[i] = sum / (b - a); }
+    setBands(u8); pubBands(u8);
+  }, 40);
+};
+/* Spatial bus for any stream played in the page: HRTF panner + small room + limiter. Tap the analyser BEFORE this chain. */
+const roomIR = (ctx, sec = 1.2, decay = 2.5) => { const n = ctx.sampleRate * sec, b = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay); } return b; };
+window.spatialBus = (ctx, src, { az = 0, dist = 2 } = {}) => {
+  const hp = new BiquadFilterNode(ctx, { type: "highpass", frequency: 60 });
+  const comp = new DynamicsCompressorNode(ctx, { threshold: -18, knee: 12, ratio: 3, attack: .01, release: .2 });
+  const pan = new PannerNode(ctx, { panningModel: "HRTF", distanceModel: "inverse", refDistance: 1, rolloffFactor: .8, positionX: Math.sin(az) * dist, positionZ: -Math.cos(az) * dist });
+  const wet = new ConvolverNode(ctx, { buffer: roomIR(ctx) }), wg = new GainNode(ctx, { gain: .18 });
+  const lim = new DynamicsCompressorNode(ctx, { threshold: -1.5, knee: 0, ratio: 20, attack: .002, release: .08 });
+  src.connect(hp).connect(comp).connect(pan); pan.connect(lim); pan.connect(wet).connect(wg).connect(lim); lim.connect(ctx.destination);
+  return { move: (a, d = dist) => { pan.positionX.setTargetAtTime(Math.sin(a) * d, ctx.currentTime, .05); pan.positionZ.setTargetAtTime(-Math.cos(a) * d, ctx.currentTime, .05); } };
+};
+const micUI = (sel, btn) => {
+  const list = async () => { try { const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput"), c = $(sel).value;
+    $(sel).innerHTML = ds.map((d, i) => `<option value="${d.deviceId}">${esc(d.label || "Input " + (i + 1))}</option>`).join(""); if (c) $(sel).value = c; } catch { } };
+  list(); $(btn).textContent = mic.on ? "Mute" : "Start";
+  $(btn).onclick = async () => { try { await micToggle($(sel).value); $(btn).textContent = mic.on ? "Mute" : "Start"; list(); } catch (e) { toast("Audio unavailable: " + e.message + " (needs HTTPS or localhost)"); } };
+};
+const prPos = () => st.pr.playing ? st.pr.anchor + st.pr.speed * (now() - st.pr.at) / 1000 : st.pr.anchor;
+
+/* ---------- Landing ---------- */
+function landing() {
+  $("#reset").classList.add("hidden");
+  const card = (r, t, d) => `<button data-r="${r}" class="btn text-left p-6 w-full"><div class="text-2xl text-[#FFCC00]">${t}</div><div class="text-sm text-slate-300 mt-1 font-normal">${d}</div></button>`;
+  $("#app").innerHTML = `<main class="min-h-screen flex flex-col items-center justify-center gap-8 p-6 bg-gradient-to-b from-[#0B192C] to-[#070f1b]">
+    <img src="${LOGO}" alt="BHRT" class="h-24"><h1 class="text-3xl font-bold">Choose this screen's role</h1>
+    <div class="grid gap-4 w-full max-w-xl">
+      ${card("control", "Control Room / Regie", "Schedule, script, prompter and graphics triggers")}
+      ${card("studio", "Studio Display & Status", "Clock, audio meter and live schedule")}
+      ${card("prompter", "Prompter & Preview", "Teleprompter and overlay preview")}
+      ${card("viewer", "Viewer View", "Public schedule, driven by the control room")}
+      ${card("output", "Program Output", "Clean graphics + intro feed for OBS / vMix browser source")}
+    </div></main>`;
+  document.querySelectorAll("[data-r]").forEach(b => b.onclick = () => { localStorage.setItem("bhrt-role", b.dataset.r); location.search = "?role=" + b.dataset.r; });
+}
+
+/* ---------- Screen 1: Control ---------- */
+function control() {
+  $("#app").innerHTML = `<div class="h-screen flex flex-col overflow-hidden">
+  <header class="flex items-center gap-3 px-3 py-2 border-b border-[#1d3557] bg-[#0B192C]">
+    <img src="${LOGO}" alt="BHRT" class="h-8"><div class="font-bold">Control Room</div>
+    <span id="fpill" class="pill red hidden"><i class="fdot"></i>FAULT</span><span id="hcd" class="pill gold hidden"></span><span id="recb" class="pill red hidden"></span>
+    <div class="ml-auto mr-16 flex items-center gap-2"><span id="conn" class="text-xs text-slate-400"></span><button id="setupbtn" class="btn py-1 text-sm">Setup</button><button id="faultbtn" class="btn red py-1 text-sm"></button></div>
+  </header>
+  <main class="flex-1 min-h-0 grid gap-3 p-3 lg:grid-cols-3 overflow-y-auto lg:overflow-hidden">
+
+    <div class="flex flex-col gap-3 min-h-0 lg:overflow-y-auto lg:pr-1">
+      <section class="panel"><h2>Graphics <span class="text-xs font-normal text-slate-400">· leaves the air automatically after 30 s</span></h2>
+        <div class="max-w-sm mx-auto">${previewBox("pv")}</div>
+        <div class="grid grid-cols-2 gap-2 mt-2"><button id="take" class="btn red">ON AIR (take staged)</button><button id="offair" class="btn">OFF AIR</button></div>
+        <div id="ovl" class="grid gap-1 mt-2 max-h-28 overflow-y-auto text-sm"></div>
+        <div class="grid grid-cols-3 gap-2 mt-2"><input id="ct" class="field" placeholder="Title / name"><input id="cs" class="field" placeholder="Subtitle (EN)"><input id="cb" class="field" placeholder="Subtitle (BS)"></div>
+        <button id="cstage" class="btn mt-2 w-full">Stage custom</button></section>
+      <section class="panel"><h2>Ticker</h2>
+        <div class="flex gap-2"><input id="tk" class="field" placeholder="Ticker message"><button id="tkon" class="btn">On</button><button id="tkoff" class="btn">Off</button></div></section>
+      <section class="panel"><h2>Show start <span class="text-xs font-normal normal-case tracking-normal text-slate-400">· countdown on output, studio &amp; here</span></h2>
+        <div class="flex items-center gap-3"><div id="sscd" class="text-4xl font-extrabold tabular-nums text-[#FFCC00]">--:--</div><div id="sstxt" class="text-xs text-slate-400"></div></div>
+        <div class="grid grid-cols-[1fr_auto] gap-2 mt-2"><input id="sstime" type="time" class="field"><button id="ssset" class="btn gold">Set start</button></div>
+        <div class="flex flex-wrap gap-2 mt-2"><button data-add="5" class="btn py-1">in 5 min</button><button data-add="10" class="btn py-1">in 10</button><button data-add="15" class="btn py-1">in 15</button><button data-add="30" class="btn py-1">in 30</button><button id="ssclr" class="btn red py-1 ml-auto">Clear</button></div>
+        <button id="ssfull" class="btn w-full mt-2"></button>
+        <div class="grid grid-cols-2 gap-2 mt-2"><input id="ssen" class="field" placeholder="Message (EN, optional)"><input id="ssbs" class="field" placeholder="Poruka (BS, opcionalno)"></div></section>
+    </div>
+
+    <div class="flex flex-col gap-3 min-h-0 lg:overflow-y-auto lg:pr-1">
+      <section class="panel flex flex-col flex-1 min-h-0"><h2>Schedule</h2>
+        <div class="flex-1 min-h-0 overflow-y-auto"><table class="w-full text-sm"><thead><tr><th>Time</th><th>Item</th><th>Type</th><th>Details</th><th></th></tr></thead><tbody id="sch"></tbody></table></div>
+        <div class="flex gap-2 mt-2"><button id="prev" class="btn">Previous</button><button id="next" class="btn gold">Next</button><button id="clr" class="btn">Clear</button></div>
+        <button id="sbtn" class="btn w-full mt-2"></button></section>
+      <section class="panel"><h2>Quick actions</h2><div id="acts" class="grid gap-3 text-sm max-h-[34vh] overflow-y-auto"></div></section>
+    </div>
+
+    <div class="flex flex-col gap-3 min-h-0 lg:overflow-y-auto lg:pr-1">
+      <section class="panel"><h2>Script &amp; prompter</h2>
+        <textarea id="sc" rows="5" class="field" placeholder="Moderation script. Lines in [BRACKETS] are director cues, (parentheses) are notes, 10:30 starts a time marker."></textarea>
+        <div class="flex flex-wrap gap-2 mt-2"><button id="sendsc" class="btn gold">Send</button><button id="play" class="btn">Play</button><button id="top" class="btn">Top</button><button id="jb" class="btn">Jump −</button><button id="jf2" class="btn">Jump +</button></div>
+        <div class="grid grid-cols-2 gap-3 mt-2 text-sm">
+          <label>Speed <span id="spv"></span><input id="sp" type="range" min="0" max="200" class="w-full accent-yellow-400"></label>
+          <label>Font size <span id="fzv"></span><input id="fz" type="range" min="28" max="120" class="w-full accent-yellow-400"></label></div></section>
+      <section class="panel"><h2>Intro</h2><input id="iu" class="field" placeholder="Intro video URL (MP4 / WebM). Empty = built-in logo sting">
+        <div class="flex gap-2 mt-2"><button id="ip" class="btn gold">Play intro</button><button id="is" class="btn">Stop</button></div></section>
+      <section class="panel"><h2>Video bank <span class="text-xs font-normal normal-case tracking-normal text-slate-400">· preloaded on every output, play several at once</span></h2>
+        <div id="vbl" class="grid gap-1 text-sm max-h-56 overflow-y-auto"></div>
+        <div class="grid grid-cols-[1fr_2fr_auto] gap-2 mt-2"><input id="vn" class="field" placeholder="Name"><input id="vu" class="field" placeholder="Video URL (MP4 / WebM)"><button id="va" class="btn">Add</button></div>
+        <div class="flex flex-wrap gap-2 mt-2"><button id="vgo" class="btn gold">▶ Play ticked together</button><button id="vstop" class="btn red">■ Stop all</button></div></section>
+      <section class="panel"><h2>Audio</h2><div class="relative"><canvas id="lvlc" class="w-full rounded bg-[#06101f]" style="height:72px"></canvas>
+          <div id="fbanner" class="hidden absolute inset-0 rounded bg-red-700/95 flex items-center gap-2 px-3 text-sm font-bold flex-wrap"><i class="fdot"></i><span>FAULT SCREEN LIVE</span><span id="fbtime" class="tabular-nums"></span><span id="fback" class="font-normal text-xs"></span><span class="ml-auto flex gap-2"><button id="fbig" class="btn py-1 text-xs">Enlarge</button><button id="fbclear" class="btn py-1 text-xs">Clear</button></span></div></div>
+        <div class="flex gap-2 mt-2"><select id="cdev" class="field"></select><button id="cmic" class="btn gold">Start</button></div></section>
+    </div>
+  </main>
+
+  <div id="setup" class="hidden fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
+    <div class="panel w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center"><h2>Setup: import show file (JSON)</h2><button id="setupclose" class="btn py-1 ml-auto">Close</button></div>
+      <input type="file" id="jf" accept=".json" class="text-sm mb-2">
+      <textarea id="jt" rows="8" class="field font-mono text-xs" placeholder='{"schedule":[{"time":"10:00","title":"Slalom, 1st run","details":"Alpine"}],"overlays":[{"title":"Anna Lang","subtitle":"Commentator"}],"script":"[CUE: Intro VT]\n10:00 Good morning..."}'></textarea>
+      <div class="flex gap-2 mt-2"><button id="jload" class="btn gold">Load &amp; publish</button><button id="jsample" class="btn">Insert sample</button></div>
+      <div class="mt-4 text-xs text-slate-400">Viewer link and embed code (iframe):</div><input id="vlink" readonly class="field text-xs mt-1">
+    </div>
+  </div></div>`;
+
+  const sample = { show: { title: "Winter Sports Live", title_bs: "Zimski sportovi uživo" },
+    hosts: [{ name: "Anna Lang", role: "Host", role_bs: "Voditeljica" }, { name: "Emir Hodžić", role: "Co-host", role_bs: "Suvoditelj" }],
+    tickers: [{ en: "Slalom starts at 10:00", bs: "Slalom počinje u 10:00" }, { en: "Medal table follows", bs: "Slijedi tabela medalja" }],
+    viz: "ring", prompter: { speed: 35, size: 60 }, viewerMessage: "Welcome! The programme is live. / Dobrodošli! Program je uživo.",
+    faultMessage: { en: "We are experiencing a technical problem. Please stand by.", bs: "Trenutno imamo tehničku smetnju. Molimo vas za malo strpljenja." },
+    actions: [{ label: "Intro graphic", do: "lower", title: "Winter Sports Live", subtitle: "BHRT", subtitle_bs: "Zimski sportovi uživo", key: "1" }, { label: "All graphics off", do: "offair_all", cls: "red", key: "0" }, { label: "Prompter fast", do: "speed", value: 90 }, { label: "Viewer note", do: "viewer_msg", text: "Back in a moment! / Odmah se vraćamo!" }, { label: "Fault ON", do: "fault", cls: "red" }, { label: "Fault OFF", do: "fault_off" }],
+    schedule: [
+    { time: "09:30", title: "Opening & weather", title_bs: "Otvaranje i vrijeme", type: "News", type_bs: "Vijesti", details: "Studio" },
+      { time: "10:00", title: "Alpine skiing: Slalom, 1st run", title_bs: "Alpsko skijanje: slalom, 1. vožnja", type: "Sport", live: true, details: "Jahorina" },
+      { time: "11:15", title: "Biathlon: Sprint", title_bs: "Biatlon: sprint", type: "Sport", details: "Highlights" },
+      { time: "11:45", title: "Interview: Head coach", title_bs: "Intervju: glavni trener", type: "Interview", type_bs: "Intervju", details: "Studio" },
+      { time: "12:30", title: "Ski jumping: Large hill", title_bs: "Skijaški skokovi: velika skakaonica", type: "Sport", live: true, details: "Live" },
+      { time: "13:30", title: "News bulletin", title_bs: "Vijesti", type: "News", type_bs: "Vijesti", details: "Studio" },
+      { time: "14:00", title: "Medal ceremony", title_bs: "Dodjela medalja", type: "Ceremony", type_bs: "Ceremonija", live: true, details: "Jahorina" }],
+    overlays: [{ title: "Anna Lang", subtitle: "Commentator" }, { title: "Slalom, 1st run", subtitle: "Live from Jahorina" }, { title: "Medal table", subtitle: "Updated after every event" }],
+    script: "[CUE: Intro VT 0:20]\n09:30 Good morning and welcome to our winter sports special.\n(Smile, look to camera 2)\nToday we follow the slalom, the biathlon sprint and the ski jumping.\n[CUE: Throw to Jahorina]\n10:00 Over to the slope where the first run is about to start." };
+  const sch = $("#sch");
+  $("#jsample").onclick = () => $("#jt").value = JSON.stringify(sample, null, 2);
+  $("#jf").onchange = e => { const f = e.target.files[0]; if (f) f.text().then(t => $("#jt").value = t); };
+  $("#jload").onclick = () => {
+    try {
+      const j = JSON.parse($("#jt").value);
+      const o = { active: -1 };
+      for (const [k, d] of [["schedule", "schedule"], ["overlays", "overlays"], ["hosts", "hosts"], ["ticker", "tickers"], ["actions", "actions"], ["script", "script"], ["show", "show"], ["viz", "viz"], ["viewerMessage", "viewerMsg"], ["faultMessage", "faultMsg"]]) if (j[k] !== undefined) o[d] = j[k];
+      if (Array.isArray(j.clips)) o.clips = j.clips.map((c, i) => ({ id: c.id || crypto.randomUUID().slice(0, 8), name: c.name || "Clip " + (i + 1), url: c.url, audio: !!c.audio, loop: !!c.loop }));
+      patch("", o); if (j.script !== undefined) $("#sc").value = j.script;
+      if (j.prompter) patch("pr", { speed: j.prompter.speed ?? st.pr.speed, size: j.prompter.size ?? st.pr.size, anchor: 0, at: now(), playing: false });
+      toast("Show file published");
+    } catch (e) { toast("Invalid JSON: " + e.message); }
+  };
+  const setActive = i => put("active", Math.max(-1, Math.min(i, st.schedule.length - 1)));
+  $("#prev").onclick = () => setActive(st.active - 1); $("#next").onclick = () => setActive(st.active + 1); $("#clr").onclick = () => setActive(-1);
+  sch.onclick = e => { const b = e.target.closest("[data-i]"); if (b) setActive(+b.dataset.i); };
+
+  const prUpd = o => patch("pr", { anchor: prPos(), at: now(), ...o });
+  $("#sendsc").onclick = () => { put("script", $("#sc").value); patch("pr", { anchor: 0, at: now() }); toast("Script sent"); };
+  $("#play").onclick = () => prUpd({ playing: !st.pr.playing });
+  $("#top").onclick = () => patch("pr", { anchor: 0, at: now() });
+  $("#jb").onclick = () => patch("pr", { anchor: Math.max(0, prPos() - 250), at: now() });
+  $("#jf2").onclick = () => patch("pr", { anchor: prPos() + 250, at: now() });
+  $("#sp").oninput = e => prUpd({ speed: +e.target.value }); $("#fz").oninput = e => patch("pr", { size: +e.target.value });
+
+  const stage = o => patch("ov", { staged: o });
+  $("#cstage").onclick = () => $("#ct").value && stage({ title: $("#ct").value, subtitle: $("#cs").value, subtitle_bs: $("#cb").value });
+  $("#take").onclick = () => st.ov.staged ? patch("ov", { live: st.ov.staged, onAir: true }) : toast("Nothing staged");
+  $("#offair").onclick = () => patch("ov", { onAir: false });
+  $("#tkon").onclick = () => patch("ov", { ticker: $("#tk").value, tickerOn: true }); $("#tkoff").onclick = () => patch("ov", { tickerOn: false });
+  $("#ovl").onclick = e => {
+    const b = e.target.closest("[data-o]"); if (!b) return; const o = st.overlays[+b.dataset.o];
+    if (b.dataset.m === "s") stage(o); else patch("ov", { staged: o, live: o, onAir: true });
+  };
+
+  const run = a => {
+    const d = a.do, o = a.title ? { title: a.title, subtitle: a.subtitle || "", subtitle_bs: a.subtitle_bs || "" } : null;
+    if (d === "lower") patch("ov", a.stage ? { staged: o } : { staged: o, live: o, onAir: true });
+    else if (d === "lower_off") patch("ov", { onAir: false });
+    else if (d === "offair_all") patch("ov", { onAir: false, tickerOn: false });
+    else if (d === "ticker") patch("ov", { ticker: a.text, tickerOn: true });
+    else if (d === "ticker_off") patch("ov", { tickerOn: false });
+    else if (d === "next") setActive(st.active + 1); else if (d === "prev") setActive(st.active - 1);
+    else if (d === "goto") setActive(a.index); else if (d === "clear") setActive(-1);
+    else if (d === "play" || d === "pause") prUpd({ playing: d === "play" });
+    else if (d === "speed") prUpd({ speed: a.value }); else if (d === "size") patch("pr", { size: a.value });
+    else if (d === "jump") patch("pr", { anchor: Math.max(0, prPos() + a.value), at: now() }); else if (d === "top") patch("pr", { anchor: 0, at: now() });
+    else if (d === "script") { put("script", a.text); patch("pr", { anchor: 0, at: now() }); }
+    else if (d === "fault") faultSet(true); else if (d === "fault_off") faultSet(false);
+    else if (d === "lang") patch("ov", { lang: a.mode });
+    else if (d === "sched_show") put("sb", { on: true, at: now() }); else if (d === "sched_hide") patch("sb", { on: false });
+    else if (d === "sched_toggle") (st.sb && st.sb.on) ? patch("sb", { on: false }) : put("sb", { on: true, at: now() });
+    else if (d === "intro_play") patch("", { intro: { id: crypto.randomUUID(), url: a.url || "", startAt: now() + 1500, state: "play" } });
+    else if (d === "intro_stop") patch("intro", { state: "stop" });
+    else if (d === "viz") put("viz", a.mode); else if (d === "viewer_msg") put("viewerMsg", a.text || "");
+    else toast("Unknown action: " + d);
+  };
+  let A = [];
+  const drawActs = () => {
+    A = []; const b = (l, a, c = "") => { A.push(a); return `<button data-k="${A.length - 1}" class="btn py-1 ${c}">${esc(l)}${a.key ? ` [${esc(a.key)}]` : ""}</button>`; };
+    const grp = (t, it) => it.length ? `<div><div class="text-slate-400 mb-1">${t}</div><div class="flex flex-wrap gap-2">${it.join("")}</div></div>` : "";
+    $("#acts").innerHTML =
+      grp("Show host name (EN / BS)", [...st.hosts.map(h => b(h.name, { do: "lower", title: h.name, subtitle: h.role || "Host", subtitle_bs: h.role_bs || "Voditelj" }, "gold")), ...(st.hosts.length ? [b("Name off", { do: "lower_off" }, "red")] : [])]) +
+      grp("Ticker", [...st.tickers.map(t => b(t.en || t, { do: "ticker", text: t.en ? t.en + "  •  " + t.bs : t })), ...(st.tickers.length ? [b("Ticker off", { do: "ticker_off" }, "red")] : [])]) +
+      grp("Lower-third language", [["both", "EN + BS"], ["en", "EN only"], ["bs", "BS only"], ["alt", "Alternate EN / BS"]].map(([m, l]) => b(l, { do: "lang", mode: m }, (st.ov.lang || "both") === m ? "gold" : ""))) +
+      grp("Custom actions", st.actions.map(a => b(a.label || a.do, a, a.cls)));
+  };
+  $("#acts").onclick = e => { const k = e.target.closest("[data-k]"); if (k) run(A[+k.dataset.k]); };
+  document.addEventListener("keydown", e => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === "ArrowRight") setActive(st.active + 1); else if (e.key === "ArrowLeft") setActive(st.active - 1);
+    else { const a = A.find(x => x.key === e.key); if (a) run(a); }
+  });
+  /* --- show start --- */
+  const ssSet = at => patch("start", { at, on: true, full: st.start && st.start.full !== undefined ? st.start.full : true, en: $("#ssen").value, bs: $("#ssbs").value });
+  $("#ssset").onclick = () => { const v = $("#sstime").value; if (!v) return toast("Pick a start time"); const [h, m] = v.split(":").map(Number), d = new Date(now()); d.setHours(h, m, 0, 0); if (d.getTime() <= now()) d.setDate(d.getDate() + 1); ssSet(d.getTime()); };
+  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { const at = now() + (+b.dataset.add) * 60000; $("#sstime").value = hhmm(at); ssSet(at); });
+  $("#ssclr").onclick = () => patch("start", { on: false });
+  $("#ssfull").onclick = () => patch("start", { full: !(st.start && st.start.full) });
+  ["#ssen", "#ssbs"].forEach(q => $(q).onchange = () => patch("start", { en: $("#ssen").value, bs: $("#ssbs").value }));
+  const drawStart = () => {
+    const s = SS(), f = !!(st.start && st.start.full);
+    $("#sscd").textContent = s ? (s.left <= 0 ? "LIVE" : fmtCd(s.left)) : "--:--";
+    $("#sstxt").textContent = s ? "Starts at " + hhmm(s.at) + " · output " + (f ? "fullscreen" : "hidden") : "No start time set";
+    const b = $("#ssfull"); b.textContent = f ? "Fullscreen countdown on output: ON (click to hide)" : "Fullscreen countdown on output: OFF (click to show)"; b.classList.toggle("gold", f);
+    const h = $("#hcd"); h.classList.toggle("hidden", !(s && s.left > -30000)); if (s) h.textContent = "START " + (s.left <= 0 ? "NOW" : fmtCd(s.left));
+    if (st.start) { for (const [q, k] of [["#ssen", "en"], ["#ssbs", "bs"]]) if (document.activeElement !== $(q)) $(q).value = st.start[k] || ""; if (s && document.activeElement !== $("#sstime")) $("#sstime").value = hhmm(s.at); }
+  };
+  setInterval(drawStart, 250);
+  /* --- video bank --- */
+  const sel = new Set(), clipSave = a => put("clips", a);
+  $("#va").onclick = () => { const u = $("#vu").value.trim(); if (!u) return toast("Enter a video URL"); clipSave([...st.clips, { id: crypto.randomUUID().slice(0, 8), name: $("#vn").value.trim() || "Clip " + (st.clips.length + 1), url: u, audio: false, loop: false }]); $("#vu").value = $("#vn").value = ""; };
+  const vPlay = ids => { const startAt = now() + 1200, u = {}; ids.forEach(id => { const c = st.clips.find(x => x.id === id); if (c) u[id] = { on: true, pid: crypto.randomUUID().slice(0, 8), startAt, loop: !!c.loop, audio: !!c.audio }; }); if (Object.keys(u).length) patch("vp", u); };
+  const vStop = ids => { const u = {}; ids.forEach(id => u[id] = { on: false, pid: "" }); if (ids.length) patch("vp", u); };
+  $("#vgo").onclick = () => sel.size ? vPlay([...sel]) : toast("Tick the clips you want to play together");
+  $("#vstop").onclick = () => vStop(st.clips.map(c => c.id));
+  $("#vbl").onclick = e => {
+    const b = e.target.closest("[data-v]"); if (!b) return; const id = b.dataset.id, a = b.dataset.v;
+    if (a === "play") vPlay([id]); else if (a === "stop") vStop([id]);
+    else if (a === "audio" || a === "loop") clipSave(st.clips.map(c => c.id === id ? { ...c, [a]: !c[a] } : c));
+    else if (a === "del") { clipSave(st.clips.filter(c => c.id !== id)); db && set(ref(db, "studio/vp/" + id), null); sel.delete(id); }
+  };
+  $("#vbl").onchange = e => { const c = e.target.closest("[data-sel]"); if (c) c.checked ? sel.add(c.dataset.sel) : sel.delete(c.dataset.sel); };
+  const drawVids = () => {
+    $("#vbl").innerHTML = st.clips.length ? st.clips.map(c => {
+      const r = rdy[c.id] || 0, p = st.vp[c.id] || {}, pl = !!p.on, i = esc(c.id);
+      const stat = !nOut ? '<span class="pill">no output online</span>' : r >= nOut ? `<span class="pill green">READY ${r}/${nOut}</span>` : `<span class="pill gold">loading ${r}/${nOut}</span>`;
+      return `<div class="flex items-center gap-2 rounded px-2 py-1 ${pl ? "bg-red-900/40" : "bg-[#06101f]"}"><input type="checkbox" data-sel="${i}" ${sel.has(c.id) ? "checked" : ""} class="w-5 h-5 accent-yellow-400">
+        <div class="flex-1 min-w-0"><div class="truncate font-semibold">${esc(c.name)}</div><div class="flex gap-1 mt-0.5 flex-wrap">${stat}${pl ? `<span class="pill red"><i class="fdot"></i>PLAYING <span data-el="${i}"></span></span>` : ""}</div></div>
+        <button data-v="audio" data-id="${i}" class="btn py-1 px-2 ${c.audio ? "gold" : ""}" title="Sound on output">♪</button><button data-v="loop" data-id="${i}" class="btn py-1 px-2 ${c.loop ? "gold" : ""}" title="Loop">⟳</button>
+        <button data-v="play" data-id="${i}" class="btn py-1 px-2 gold">▶</button><button data-v="stop" data-id="${i}" class="btn py-1 px-2 red">■</button><button data-v="del" data-id="${i}" class="btn py-1 px-2" title="Remove">✕</button></div>`;
+    }).join("") : '<div class="text-slate-400">No clips yet. Add a video URL below.</div>';
+  };
+  onVid = drawVids;
+  setInterval(() => document.querySelectorAll("[data-el]").forEach(el => { const p = st.vp[el.dataset.el]; el.textContent = p && p.startAt ? (now() < p.startAt ? "starting…" : fmtEl(now() - p.startAt)) : ""; }), 500);
+  const recBadge = () => { const who = Object.entries(st.rec || {}).filter(([, v]) => v).map(([k]) => k), r = $("#recb"); r.classList.toggle("hidden", !who.length); r.textContent = "● REC " + who.join(", "); };
+  micUI("#cdev", "#cmic"); mountMeter("lvlc"); wake();
+  $("#ip").onclick = () => run({ do: "intro_play", url: $("#iu").value.trim() }); $("#is").onclick = () => run({ do: "intro_stop" });
+  $("#sbtn").onclick = () => run({ do: "sched_toggle" });
+  $("#setupbtn").onclick = () => $("#setup").classList.remove("hidden"); $("#setupclose").onclick = () => $("#setup").classList.add("hidden");
+  setInterval(() => {                         // auto-off: clear the shared state once the 30 s are over
+    if (st.ov.onAir && !ovView().onAir) patch("ov", { onAir: false });
+    if (st.ov.tickerOn && !ovView().tickerOn) patch("ov", { tickerOn: false });
+  }, 1000);
+  document.addEventListener("keydown", e => { if (e.ctrlKey && e.shiftKey && e.code === "KeyF") { e.preventDefault(); if (!st.fault) faultSet(true); } });   // instant ON; clearing asks for confirmation
+  $("#faultbtn").onclick = () => st.fault ? faultClear() : faultSet(true);
+  $("#fbig").onclick = () => { ctlBig = true; faultUpdate(); }; $("#fbclear").onclick = faultClear;
+  const vurl = location.href.split(/[?#]/)[0] + "?role=viewer";
+  $("#vlink").value = vurl + '   <iframe src="' + vurl + '" width="100%" height="600" style="border:0"></iframe>';
+  let init = false;
+  onState = () => {
+    $("#conn").textContent = db ? "Synced" : "Offline";
+    sch.innerHTML = st.schedule.length ? st.schedule.map((r, i) => `<tr class="${i === st.active ? "act" : ""}"><td class="whitespace-nowrap">${esc(r.time)}</td><td>${esc(r.title)}</td><td>${chips(r)}</td><td class="text-slate-400">${esc(r.details)}</td><td><button data-i="${i}" class="btn py-1">Activate</button></td></tr>`).join("") : `<tr><td colspan="5" class="text-slate-400">No schedule yet. Import a show file.</td></tr>`;
+    $("#ovl").innerHTML = st.overlays.length ? st.overlays.map((o, i) => `<div class="flex items-center gap-2"><div class="flex-1 min-w-0 truncate"><b>${esc(o.title)}</b> <span class="text-slate-400">${esc(o.subtitle)}</span></div><button data-o="${i}" data-m="s" class="btn py-1">Stage</button><button data-o="${i}" data-m="l" class="btn red py-1">ON AIR</button></div>`).join("") : `<div class="text-slate-400">No graphics loaded.</div>`;
+    $("#play").textContent = st.pr.playing ? "Pause" : "Play";
+    $("#spv").textContent = st.pr.speed + " px/s"; $("#fzv").textContent = st.pr.size + " px";
+    if (!init || document.activeElement !== $("#sp")) $("#sp").value = st.pr.speed;
+    if (!init || document.activeElement !== $("#fz")) $("#fz").value = st.pr.size;
+    if (!init && st.script) { $("#sc").value = st.script; } init = true;
+    const sbb = $("#sbtn"); if (sbb) { const on = !!(st.sb && st.sb.on); sbb.textContent = on ? "Hide schedule on viewer screen" : "Show schedule on viewer screen"; sbb.classList.toggle("gold", on); }
+    drawActs(); faultUpdate(); drawVids(); drawStart(); recBadge();
+    drawPreview("pv");
+  };
+  onState();
+}
+
+/* ---------- Screen 2: Studio ---------- */
+function studio() {
+  $("#app").innerHTML = `<div class="h-screen flex flex-col">
+  <header class="flex items-center gap-3 px-4 pb-2 safe-t border-b border-[#1d3557] bg-[#0B192C]">
+    <img src="${LOGO}" alt="BHRT" class="h-9 sm:h-11"><div class="font-bold text-lg">Studio Display</div>
+    <div class="ml-auto mr-20 flex items-center gap-3"><span id="conn" class="text-xs text-slate-400"></span><button id="fsb" class="btn py-1 text-sm">⛶ Fullscreen</button></div>
+  </header>
+  <main class="flex-1 min-h-0 grid gap-3 p-3 lg:grid-cols-[1.1fr_1fr] overflow-y-auto lg:overflow-hidden" style="padding-bottom:max(.75rem,env(safe-area-inset-bottom))">
+    <div class="flex flex-col gap-3 min-h-0">
+      <section class="panel text-center py-3" style="container-type:inline-size">
+        <div id="clk" class="font-extrabold tabular-nums leading-none text-[#FFCC00]" style="font-size:min(15.5cqw,19vh)">--:--:--</div>
+        <div id="dt" class="text-lg sm:text-2xl text-slate-300 mt-2"></div>
+        <div class="mt-3 flex gap-2 justify-center flex-wrap"><span id="air" class="pill">OFF AIR</span><span id="recp" class="pill red hidden"></span></div>
+      </section>
+      <section id="sd" class="panel hidden flex items-center gap-4 py-2">
+        <div class="text-[11px] uppercase tracking-widest text-slate-400 leading-tight">Show starts in<br>Početak za</div>
+        <div id="sdt" class="text-4xl font-extrabold tabular-nums text-[#FFCC00]"></div><div id="sda" class="ml-auto text-sm text-slate-300"></div>
+      </section>
+      <section class="panel"><h2>On now / Trenutno</h2><div id="now"></div></section>
+      <section class="panel flex flex-col flex-1" style="min-height:210px"><h2>Audio input</h2>
+        <canvas id="cv" class="w-full rounded bg-[#06101f]" style="flex:1;height:0;min-height:110px"></canvas>
+        <div class="flex gap-2 mt-2"><select id="dev" class="field"></select><button id="amic" class="btn gold whitespace-nowrap">Start</button></div></section>
+      <section class="panel"><h2>Record video</h2>${recHTML}<div id="rcbox" class="rcbox rcin hidden"><video id="rcpv" playsinline muted autoplay></video><span class="rt">● REC <b id="rcpt"></b></span></div></section>
+    </div>
+    <section class="panel flex flex-col min-h-0"><h2>Live schedule</h2><div id="sl" class="relative grid gap-2 content-start flex-1 min-h-0 overflow-y-auto max-lg:max-h-[60vh]"></div></section>
+  </main></div>`;
+  const tick = () => {
+    const d = new Date(now());
+    $("#clk").textContent = d.toLocaleTimeString("en-GB"); $("#dt").textContent = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const v = ovView(), a = $("#air"), on = v.onAir || v.tickerOn; a.textContent = on ? "GRAPHIC ON AIR" : "OFF AIR"; a.className = "pill " + (on ? "red" : "");
+    const who = Object.entries(st.rec || {}).filter(([, x]) => x).map(([k]) => k), r = $("#recp"); r.classList.toggle("hidden", !who.length); r.innerHTML = '<i class="fdot"></i>REC ' + who.join(", ");
+    const s = SS(), sd = $("#sd"), vis = !!s && s.left > -30000; sd.classList.toggle("hidden", !vis);
+    if (vis) { $("#sdt").textContent = s.left <= 0 ? "LIVE" : fmtCd(s.left); $("#sda").textContent = "Start " + hhmm(s.at); }
+  };
+  tick(); setInterval(tick, 250);
+  micUI("#dev", "#amic"); mountMeter("cv"); recMount(); fsInit(); wake();
+
+  let key = "", lastA = -2;
+  onState = () => {
+    $("#conn").textContent = db ? "Synced" : "Offline";
+    const a = st.schedule[st.active], n = st.schedule[st.active + 1];
+    $("#now").innerHTML = a ? `<div class="flex items-baseline gap-3 flex-wrap"><span class="time tabular-nums text-2xl">${esc(a.time)}</span><span class="font-extrabold text-[#FFCC00] leading-tight" style="font-size:clamp(24px,3.2vw,46px)">${esc(a.title)}</span>${chips(a)}</div>
+        ${a.title_bs ? `<div class="text-xl text-[#FFCC00]/75">${esc(a.title_bs)}</div>` : ""}${a.details ? `<div class="text-slate-300">${esc(a.details)}</div>` : ""}
+        <div class="mt-2 text-slate-400">Next / Slijedi: <b class="text-slate-200">${n ? esc(n.time + " " + n.title) : "–"}</b> <span class="text-xs">· ${st.active + 1}/${st.schedule.length}</span></div>`
+      : `<div class="text-slate-400 text-xl">Waiting for the first item / Čekamo prvu stavku…</div>`;
+    const k = JSON.stringify([st.schedule, st.active]);
+    if (k !== key) {
+      key = k;
+      $("#sl").innerHTML = st.schedule.length ? st.schedule.map((r, i) => `<div class="${i === st.active ? "act " : ""}grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg px-3 py-2 ${i === st.active ? "bg-[#FFCC00] text-[#0B192C] font-bold" : i < st.active ? "opacity-40 bg-[#06101f]" : "bg-[#06101f]"}"><span class="tabular-nums ${i === st.active ? "text-xl" : ""}">${esc(r.time)}</span><span class="min-w-0"><span class="block truncate ${i === st.active ? "text-xl" : ""}">${esc(r.title)}</span>${r.title_bs ? `<span class="block truncate text-xs font-normal opacity-70">${esc(r.title_bs)}</span>` : ""}</span><span class="text-sm opacity-80 whitespace-nowrap">${chips(r)}</span></div>`).join("")
+        : `<div class="text-slate-400">Waiting for the control room to publish a schedule.</div>`;
+    }
+    if (st.active !== lastA) { lastA = st.active; const el = $("#sl .act"), sl = $("#sl"); if (el) sl.scrollTo({ top: Math.max(0, el.offsetTop - sl.clientHeight * .3), behavior: "smooth" }); }
+  };
+  onState();
+}
+
+/* ---------- Screen 3: Prompter ---------- */
+function prompter() {
+  const mir = localStorage.getItem("bhrt-mirror") === "1";
+  $("#app").innerHTML = `<div class="h-screen flex flex-col" id="ptroot">
+    <header class="flex items-center gap-3 px-3 pb-2 safe-t border-b border-[#1d3557] bg-[#0B192C]">
+      <img src="${LOGO}" alt="BHRT" class="h-8"><div class="font-bold">Prompter</div><span id="ptrem" class="pill hidden"></span><span id="ptrec" class="pill red hidden"><i class="fdot"></i>REC <span id="ptrect"></span></span>
+      <div class="ml-auto mr-20 flex items-center gap-2"><span id="conn" class="text-xs text-slate-400"></span>
+        <button id="ptmir" class="btn py-1 text-sm">⇋ Mirror</button><button id="ptsb" class="btn py-1 text-sm">Panel</button><button id="fsb" class="btn py-1 text-sm">⛶</button></div>
+    </header>
+    <div class="flex-1 min-h-0 flex relative">
+      <div class="flex-1 min-w-0 relative bg-black" id="ptstage">
+        <div class="ptprog"><i id="ptpr"></i></div>
+        <div id="ptmirror" class="absolute inset-0 ${mir ? "mir" : ""}"><div class="scr bg-black" id="pt"><div class="pt-fade t"></div><div class="pt-fade b"></div><div class="pt-band"><i class="l"></i><i class="r"></i></div><div id="pt-text"></div></div></div>
+        <div id="rcbox" class="rcbox hidden"><video id="rcpv" playsinline muted autoplay></video><span class="rt">● REC <b id="rcpt"></b></span></div>
+        <div id="ptctl" class="ptctl">
+          <div class="grp"><button class="btn" id="ptt" title="Top">⏮</button><button class="btn" id="ptjb" title="Back">⏪</button><button class="btn gold" id="ptplay" style="min-width:96px">▶ Play</button><button class="btn" id="ptjf" title="Forward">⏩</button></div>
+          <div class="grp"><button class="btn" id="spm">−</button><span class="val" id="spv2"></span><button class="btn" id="spp">+</button><span class="text-xs text-slate-400">speed</span></div>
+          <div class="grp"><button class="btn" id="fzm">A−</button><span class="val" id="fzv2"></span><button class="btn" id="fzp">A+</button></div>
+          <div class="grp"><button class="btn gold rc-btn">● Record</button></div>
+        </div>
+      </div>
+      <aside id="ptside" class="absolute lg:static right-0 top-0 bottom-0 z-20 w-[340px] shrink-0 p-3 border-l border-[#1d3557] bg-[#0B192C] overflow-y-auto${innerWidth < 1100 ? " hidden" : ""}">
+        <h2>Preview</h2>${previewBox("pv")}<h2 class="mt-4">Audio levels</h2><canvas id="lvl" class="w-full rounded bg-[#06101f]" style="height:64px"></canvas>
+        <h2 class="mt-4">Show</h2><div id="nx" class="text-sm text-slate-300"></div>
+        <h2 class="mt-4">Record video</h2>${recHTML}</aside>
+    </div></div>`;
+  const body = $("#pt-text"), pt = $("#pt"), ctl = $("#ptctl"), prog = $("#ptpr");
+  let lastScript = null, wasPlaying = null, H = 0, boxH = 0, hideT = 0, lastRem = 0;
+  const measure = () => { H = body.offsetHeight; boxH = pt.clientHeight; };
+  new ResizeObserver(measure).observe(pt); new ResizeObserver(measure).observe(body);
+  const fmt = l => {
+    const t = l.trim(); if (!t) return "";
+    if (/^\[.*\]$/.test(t)) return `<p><span class="cue">${esc(t.slice(1, -1))}</span></p>`;
+    if (/^\(.*\)$/.test(t)) return `<p class="note">${esc(t)}</p>`;
+    return `<p>${esc(t).replace(/^(\d{1,2}[:.]\d{2})/, '<span class="time">$1</span>')}</p>`;
+  };
+  const prUpd = o => patch("pr", { anchor: prPos(), at: now(), ...o });
+  const showCtl = () => { ctl.classList.remove("hid"); clearTimeout(hideT); if (st.pr.playing) hideT = setTimeout(() => ctl.classList.add("hid"), 5000); };
+  pt.onclick = () => ctl.classList.contains("hid") ? showCtl() : ctl.classList.add("hid");
+  ctl.addEventListener("pointerdown", showCtl);
+  $("#ptplay").onclick = () => prUpd({ playing: !st.pr.playing });
+  $("#ptt").onclick = () => patch("pr", { anchor: 0, at: now() });
+  $("#ptjb").onclick = () => patch("pr", { anchor: Math.max(0, prPos() - 300), at: now() });
+  $("#ptjf").onclick = () => patch("pr", { anchor: prPos() + 300, at: now() });
+  $("#spm").onclick = () => prUpd({ speed: Math.max(0, st.pr.speed - 5) }); $("#spp").onclick = () => prUpd({ speed: Math.min(200, st.pr.speed + 5) });
+  $("#fzm").onclick = () => patch("pr", { size: Math.max(28, st.pr.size - 4) }); $("#fzp").onclick = () => patch("pr", { size: Math.min(120, st.pr.size + 4) });
+  $("#ptmir").onclick = () => { const m = $("#ptmirror").classList.toggle("mir"); localStorage.setItem("bhrt-mirror", m ? "1" : "0"); };
+  $("#ptsb").onclick = () => $("#ptside").classList.toggle("hidden");
+  document.addEventListener("keydown", e => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.code === "Space") { e.preventDefault(); $("#ptplay").click(); }
+    else if (e.key === "ArrowUp") $("#spp").click(); else if (e.key === "ArrowDown") $("#spm").click(); else if (e.key === "Home") $("#ptt").click();
+  });
+  const loop = () => {
+    if (!$("#pt")) return;
+    const max = Math.max(1, H - 80), raw = prPos(), p = Math.min(Math.max(raw, 0), max);
+    body.style.transform = `translate3d(0,${boxH * .38 - p}px,0)`; prog.style.width = (p / max * 100).toFixed(1) + "%";
+    const t = performance.now();
+    if (t - lastRem > 300) {
+      lastRem = t; const r = $("#ptrem"), rem = st.pr.speed > 0 ? (max - p) / st.pr.speed * 1000 : 0;
+      r.classList.toggle("hidden", !st.script || st.pr.speed <= 0); r.textContent = "−" + fmtEl(rem);
+      const rc = $("#ptrec"); rc.classList.toggle("hidden", !REC.on); if (REC.on) $("#ptrect").textContent = fmtEl(Date.now() - REC.t0);
+    }
+    requestAnimationFrame(loop);
+  };
+  onState = () => {
+    $("#conn").textContent = db ? "Synced" : "Offline";
+    body.style.fontSize = st.pr.size + "px";
+    if (st.script !== lastScript) { lastScript = st.script; body.innerHTML = st.script ? st.script.split("\n").map(fmt).join("") : `<p class="note">Waiting for a script from the control room.</p>`; }
+    measure(); drawPreview("pv");
+    $("#ptplay").textContent = st.pr.playing ? "⏸ Pause" : "▶ Play"; $("#spv2").textContent = st.pr.speed; $("#fzv2").textContent = st.pr.size;
+    if (st.pr.playing !== wasPlaying) { wasPlaying = st.pr.playing; showCtl(); } if (!st.pr.playing) { clearTimeout(hideT); ctl.classList.remove("hid"); }
+    const a = st.schedule[st.active], n = st.schedule[st.active + 1];
+    $("#nx").innerHTML = `<div>Now: <b class="text-[#FFCC00]">${a ? esc(a.time + " " + a.title) : "–"}</b></div><div>Next: ${n ? esc(n.time + " " + n.title) : "–"}</div>`;
+  };
+  mountMeter("lvl"); recMount(); fsInit(); wake(); onState(); loop();
+}
+
+function viewer() {
+  $("#reset").classList.add("hidden");
+  $("#app").innerHTML = header("Programme") + `<main class="max-w-2xl mx-auto p-4 grid gap-4"><div><h1 id="vt" class="text-2xl sm:text-3xl font-bold"></h1><div id="vm" class="text-slate-300 mt-1"></div></div><div id="vnow" class="panel"></div><div id="vl" class="grid gap-2"></div></main>`;
+  let last = -2;
+  onState = () => {
+    $("#conn").textContent = db ? "Live" : "Offline";
+    $("#vt").textContent = (st.show.title || "Schedule") + (st.show.title_bs ? " / " + st.show.title_bs : ""); $("#vm").textContent = st.viewerMsg;
+    const a = st.schedule[st.active], n = st.schedule[st.active + 1];
+    $("#vnow").innerHTML = a ? `<div class="text-sm text-slate-400">On now / Trenutno: item ${st.active + 1} of ${st.schedule.length}</div><div class="text-2xl font-bold text-[#FFCC00]">${esc(a.time)} ${esc(a.title)}</div>${a.title_bs ? `<div class="text-lg text-[#FFCC00]/80">${esc(a.title_bs)}</div>` : ""}<div class="text-slate-300">${esc(a.details)}</div>${n ? `<div class="mt-2 text-sm text-slate-400">Next / Slijedi: ${esc(n.time)} ${esc(n.title)}</div>` : ""}` : `<div class="text-slate-300">The programme starts soon. / Program uskoro počinje.</div>`;
+    $("#vl").innerHTML = st.schedule.map((r, i) => `<div id="v${i}" class="flex gap-3 items-baseline rounded-lg px-3 py-3 ${i === st.active ? "bg-[#FFCC00] text-[#0B192C] font-bold" : i < st.active ? "opacity-40 line-through" : "bg-[#0B192C] border border-[#1d3557]"}"><span class="tabular-nums">${esc(r.time)}</span><span class="flex-1">${esc(r.title)}${r.title_bs ? `<span class="block text-sm font-normal opacity-75">${esc(r.title_bs)}</span>` : ""}</span><span class="text-sm opacity-70">${esc(r.details)}</span></div>`).join("");
+    if (st.active !== last) { last = st.active; const el = $("#v" + st.active); el && el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth" }); }
+  };
+  onState();
+}
+
+/* Clean program feed for OBS / vMix: transparent background, graphics + intro only (fault still overrides everything) */
+function output() {
+  document.documentElement.style.background = document.body.style.background = "transparent";
+  $("#reset").classList.add("hidden"); $("#toast").style.display = "none";
+  $("#app").innerHTML = '<div id="pgm" style="position:fixed;inset:0"></div>';
+  const draw = () => gfx($("#pgm"), ovView()); onState = draw; draw(); setInterval(draw, 500);
+}
+({ control, studio, prompter, viewer, output }[role] || landing)();
+</script>
+</body>
+</html>
