@@ -178,7 +178,7 @@ if (!["control", "studio", "prompter", "viewer", "output"].includes(role)) role 
 $("#reset").onclick = () => { localStorage.removeItem("bhrt-role"); location.href = location.pathname; };
 
 /* ---------- State & Firebase ---------- */
-let st = { schedule: [], overlays: [], hosts: [], tickers: [], actions: [], viz: "bars", viewerMsg: "", show: {}, fault: false, faultMsg: {}, active: -1, script: "", pr: { playing: false, speed: 40, size: 56, anchor: 0, at: 0 }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both" }, intro: null, faultId: "", faultAt: 0, sb: {}, start: {}, clips: [], vp: {}, rec: {}, songs: [], sg: {} };
+let st = { schedule: [], overlays: [], hosts: [], tickers: [], actions: [], viz: "bars", viewerMsg: "", show: {}, fault: false, faultMsg: {}, active: -1, script: "", pr: { playing: false, speed: 40, size: 56, anchor: 0, at: 0 }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both" }, intro: null, faultId: "", faultAt: 0, sb: {}, start: {}, clips: [], vp: {}, rec: {}, songs: [], sg: {}, activeAt: 0 };
 let off = 0, db = null, onState = () => {};
 const now = () => Date.now() + off;
 const arr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) : []);
@@ -198,7 +198,7 @@ try {
   onValue(ref(db, "studioAudio"), s => { const v = s.val(); if (v && v.b && !mic.on && performance.now() - bcAt > 500) setBands(Uint8Array.from(atob(v.b), c => c.charCodeAt(0))); });
   onValue(ref(db, "studio"), s => {
     const v = s.val() || {};
-    st = { ...st, ...v, schedule: arr(v.schedule), overlays: arr(v.overlays), hosts: arr(v.hosts), tickers: arr(v.tickers), actions: arr(v.actions), viz: v.viz || "bars", viewerMsg: v.viewerMsg || "", show: v.show || {}, fault: !!v.fault, faultMsg: v.faultMsg || {}, script: v.script || "", pr: { ...st.pr, ...(v.pr || {}) }, ov: { ...st.ov, ...(v.ov || {}) }, active: v.active ?? -1, start: v.start || {}, clips: arr(v.clips), vp: v.vp || {}, rec: v.rec || {}, songs: arr(v.songs), sg: v.sg || {} };
+    st = { ...st, ...v, schedule: arr(v.schedule), overlays: arr(v.overlays), hosts: arr(v.hosts), tickers: arr(v.tickers), actions: arr(v.actions), viz: v.viz || "bars", viewerMsg: v.viewerMsg || "", show: v.show || {}, fault: !!v.fault, faultMsg: v.faultMsg || {}, script: v.script || "", pr: { ...st.pr, ...(v.pr || {}) }, ov: { live: null, staged: null, onAir: false, ticker: "", tickerOn: false, lang: "both", ...(v.ov || {}) }, intro: v.intro || null, sb: v.sb || {}, active: v.active ?? -1, start: v.start || {}, clips: arr(v.clips), vp: v.vp || {}, rec: v.rec || {}, songs: arr(v.songs), sg: v.sg || {}, activeAt: v.activeAt || 0 };
     faultUpdate();                                   // fault first: a page render error must never block it
     try { introUpdate(); boardUpdate(); cdUpdate(); vbankUpdate(); onState(); } catch (err) { console.error(err); }
   }, e => toast("Database error: " + e.message));
@@ -277,7 +277,7 @@ const boardEl = Object.assign(document.createElement("div"), { className: "board
 document.body.appendChild(boardEl);
 let boardKey = "", boardPg = -1;
 function boardUpdate() {
-  if (!["output", "viewer"].includes(role)) return;
+  if (!["output", "viewer", "studio"].includes(role)) return;     // not in the control room
   const sb = st.sb || {}, on = !!sb.on; boardEl.classList.toggle("on", on); if (!on) { boardPg = -1; boardKey = ""; return; }
   const pages = Math.max(1, Math.ceil(st.schedule.length / ROWS));
   const pg = pages > 1 ? Math.floor(Math.max(0, now() - (sb.at || 0)) / PAGE_MS) % pages : 0;   // time-based → all screens flip together
@@ -302,7 +302,8 @@ introLayer.style.setProperty("--logo", `url(${LOGO})`);
 let introId = null;
 const stopIntro = () => { introLayer.classList.remove("on", "sting"); $("video", introLayer).pause(); };
 function introUpdate() {
-  const i = st.intro; if (!i || !["output", "viewer"].includes(role)) return;
+  if (!["output", "viewer"].includes(role)) return;
+  const i = st.intro; if (!i) { if (introId) { introId = null; stopIntro(); } return; }     // intro deleted from the database (e.g. new JSON import) → stop it
   if (i.state === "stop") return stopIntro();
   if (i.id === introId) return; introId = i.id;
   const wait = Math.max(0, i.startAt - now());
@@ -329,7 +330,7 @@ if (db) onValue(ref(db, ".info/connected"), s => { if (!s.val()) return;
   const p = ref(db, "studioPresence/" + cid); onDisconnect(p).remove(); set(p, { role: role || "landing", t: serverTimestamp(), rdy: readyIds() }).catch(() => { }); });
 const ackFault = () => db && st.faultId && set(ref(db, `studioAck/${st.faultId}/${cid}`), { role: role || "landing", t: now() }).catch(() => { });
 let nOn = 0, nOut = 0, rdy = {}, offAck = () => { }, ackFor = "", onVid = () => { };
-if (db && role === "control") onValue(ref(db, "studioPresence"), s => { const v = s.val() || {}, o = Object.values(v).filter(x => x.role === "output"); nOn = Object.keys(v).length; nOut = o.length; rdy = {}; o.forEach(x => arr(x.rdy).forEach(id => rdy[id] = (rdy[id] || 0) + 1)); onVid(); });
+if (db && role === "control") onValue(ref(db, "studioPresence"), s => { const v = s.val() || {}, o = Object.values(v).filter(x => x.role === "output"); nOn = Object.keys(v).length; nOut = o.length; const cnt = {}; Object.values(v).forEach(x => cnt[x.role] = (cnt[x.role] || 0) + 1); const hp = $("#hpres"); if (hp) { hp.textContent = (nOut ? "" : "⚠ no output · ") + ["output", "studio", "prompter", "viewer"].map(r => (cnt[r] || 0) + " " + r).join(" · "); hp.className = "pill " + (nOut ? "green" : "gold"); } rdy = {}; o.forEach(x => arr(x.rdy).forEach(id => rdy[id] = (rdy[id] || 0) + 1)); onVid(); });
 const watchAck = () => { if (ackFor === st.faultId) return; ackFor = st.faultId; offAck();
   if (db && st.fault && st.faultId) offAck = onValue(ref(db, "studioAck/" + st.faultId), s => { const b = $("#fback"); if (b) b.textContent = `${Object.keys(s.val() || {}).length}/${nOn} screens confirmed`; }); };
 
@@ -574,7 +575,7 @@ function control() {
   $("#app").innerHTML = `<div class="h-screen flex flex-col overflow-hidden">
   <header class="flex items-center gap-3 px-3 py-2 border-b border-[#1d3557] bg-[#0B192C]">
     <img src="${LOGO}" alt="BHRT" class="h-8"><div class="font-bold">Control Room</div>
-    <span id="fpill" class="pill red hidden"><i class="fdot"></i>FAULT</span><span id="hcd" class="pill gold hidden"></span><span id="recb" class="pill red hidden"></span>
+    <span id="hpres" class="pill" title="Screens online"></span><span id="fpill" class="pill red hidden"><i class="fdot"></i>FAULT</span><span id="hcd" class="pill gold hidden"></span><span id="recb" class="pill red hidden"></span>
     <div class="ml-auto mr-16 flex items-center gap-2"><span id="conn" class="text-xs text-slate-400"></span><button id="setupbtn" class="btn py-1 text-sm">Setup</button><button id="faultbtn" class="btn red py-1 text-sm"></button></div>
   </header>
   <main class="flex-1 min-h-0 grid gap-3 p-3 lg:grid-cols-3 overflow-y-auto lg:overflow-hidden">
@@ -659,17 +660,18 @@ function control() {
   $("#jload").onclick = () => {
     try {
       const j = JSON.parse($("#jt").value);
-      const o = { active: -1 };
+      // fresh import = clean slate: lower third/ticker (ov), song card (sg), playing videos (vp), schedule board (sb), intro, show-start countdown, item timer are deleted from the database
+      const o = { active: -1, activeAt: null, ov: null, sg: null, vp: null, sb: null, intro: null, start: null };
       for (const [k, d] of [["schedule", "schedule"], ["overlays", "overlays"], ["hosts", "hosts"], ["ticker", "tickers"], ["actions", "actions"], ["script", "script"], ["show", "show"], ["viz", "viz"], ["viewerMessage", "viewerMsg"], ["faultMessage", "faultMsg"]]) if (j[k] !== undefined) o[d] = j[k];
       const vids = j.videos || j.clips;           // "videos": [{ name, link, title, artist, album, year, audio, loop }]
       if (Array.isArray(vids)) o.clips = vids.map((c, i) => { const m = c.song || {}; return { id: c.id || crypto.randomUUID().slice(0, 8), name: c.name || c.title || "Clip " + (i + 1), url: c.link || c.url || "", audio: !!c.audio, loop: !!c.loop, title: c.title ?? m.title ?? "", artist: c.artist ?? m.artist ?? "", album: c.album ?? m.album ?? "", year: c.year ?? m.year ?? "" }; }).filter(c => c.url);
       if (Array.isArray(j.songs)) o.songs = j.songs.map(x => ({ title: x.title || x.name || "", artist: x.artist || "", album: x.album || "", year: x.year || "" }));
       patch("", o); if (j.script !== undefined) $("#sc").value = j.script;
       if (j.prompter) patch("pr", { speed: j.prompter.speed ?? st.pr.speed, size: j.prompter.size ?? st.pr.size, anchor: 0, at: now(), playing: false });
-      toast("Show file published");
+      toast("Show file published – all graphics, videos, countdown & board reset");
     } catch (e) { toast("Invalid JSON: " + e.message); }
   };
-  const setActive = i => put("active", Math.max(-1, Math.min(i, st.schedule.length - 1)));
+  const setActive = i => patch("", { active: Math.max(-1, Math.min(i, st.schedule.length - 1)), activeAt: now() });
   $("#prev").onclick = () => setActive(st.active - 1); $("#next").onclick = () => setActive(st.active + 1); $("#clr").onclick = () => setActive(-1);
   sch.onclick = e => { const b = e.target.closest("[data-i]"); if (b) setActive(+b.dataset.i); };
 
@@ -810,7 +812,7 @@ function control() {
     if (!init || document.activeElement !== $("#sp")) $("#sp").value = st.pr.speed;
     if (!init || document.activeElement !== $("#fz")) $("#fz").value = st.pr.size;
     if (!init && st.script) { $("#sc").value = st.script; } init = true;
-    const sbb = $("#sbtn"); if (sbb) { const on = !!(st.sb && st.sb.on); sbb.textContent = on ? "Hide schedule on viewer screen" : "Show schedule on viewer screen"; sbb.classList.toggle("gold", on); }
+    const sbb = $("#sbtn"); if (sbb) { const on = !!(st.sb && st.sb.on); sbb.textContent = on ? "Hide schedule on viewer, output & studio" : "Show schedule on viewer, output & studio"; sbb.classList.toggle("gold", on); }
     drawActs(); faultUpdate(); drawVids(); drawSongs(); drawStart(); recBadge();
     drawPreview("pv");
   };
@@ -835,29 +837,41 @@ function studio() {
         <div class="text-[11px] uppercase tracking-widest text-slate-400 leading-tight">Show starts in<br>Početak za</div>
         <div id="sdt" class="text-4xl font-extrabold tabular-nums text-[#FFCC00]"></div><div id="sda" class="ml-auto text-sm text-slate-300"></div>
       </section>
-      <section class="panel"><h2>On now / Trenutno</h2><div id="now"></div></section>
+      <section class="panel"><h2>On now / Trenutno <span id="nowel" class="pill ml-2 normal-case tracking-normal hidden"></span> <span id="nxin" class="pill ml-1 normal-case tracking-normal hidden"></span></h2><div id="now"></div><div id="onair" class="flex gap-2 flex-wrap mt-2"></div></section>
       <section class="panel flex flex-col flex-1" style="min-height:210px"><h2>Audio input</h2>
         <canvas id="cv" class="w-full rounded bg-[#06101f]" style="flex:1;height:0;min-height:110px"></canvas>
         <div class="flex gap-2 mt-2"><select id="dev" class="field"></select><button id="amic" class="btn gold whitespace-nowrap">Start</button></div></section>
       <section class="panel"><h2>Record video</h2>${recHTML}<div id="rcbox" class="rcbox rcin hidden"><video id="rcpv" playsinline muted autoplay></video><span class="rt">● REC <b id="rcpt"></b></span></div></section>
     </div>
-    <section class="panel flex flex-col min-h-0"><h2>Live schedule</h2><div id="sl" class="relative grid gap-2 content-start flex-1 min-h-0 overflow-y-auto max-lg:max-h-[60vh]"></div></section>
+    <section class="panel flex flex-col min-h-0"><h2>Live schedule <span class="text-xs font-normal normal-case tracking-normal text-slate-400">· tap an item to mark where you are</span></h2><div id="sl" class="relative grid gap-2 content-start flex-1 min-h-0 overflow-y-auto max-lg:max-h-[60vh]"></div></section>
   </main></div>`;
   const tick = () => {
     const d = new Date(now());
     $("#clk").textContent = d.toLocaleTimeString("en-GB"); $("#dt").textContent = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const v = ovView(), a = $("#air"), on = v.onAir || v.tickerOn; a.textContent = on ? "GRAPHIC ON AIR" : "OFF AIR"; a.className = "pill " + (on ? "red" : "");
     const who = Object.entries(st.rec || {}).filter(([, x]) => x).map(([k]) => k), r = $("#recp"); r.classList.toggle("hidden", !who.length); r.innerHTML = '<i class="fdot"></i>REC ' + who.join(", ");
+    const el = $("#nowel"), a0 = st.schedule[st.active], n0 = st.schedule[st.active + 1];
+    el.classList.toggle("hidden", !(a0 && st.activeAt)); if (a0 && st.activeAt) el.textContent = "running " + fmtEl(now() - st.activeAt);
+    const ni = $("#nxin"), m = n0 && /^(\d{1,2})[:.](\d{2})/.exec(n0.time || "");
+    if (m) { const d = new Date(now()); d.setHours(+m[1], +m[2], 0, 0); const mins = Math.round((d - now()) / 60000); ni.classList.remove("hidden"); ni.textContent = mins > 0 ? "next in " + mins + " min" : mins === 0 ? "next due now" : "next overdue " + -mins + " min"; ni.className = "pill ml-1 normal-case tracking-normal " + (mins < 0 ? "red" : mins <= 2 ? "gold" : ""); } else ni.classList.add("hidden");
+    const sv = sgView(), vp = st.clips.filter(c => st.vp[c.id] && st.vp[c.id].on).map(c => c.name), pills = [];
+    if (v.onAir && v.live) pills.push(`<span class="pill red">ON AIR: ${esc(v.live.title)}</span>`);
+    if (v.tickerOn && v.ticker) pills.push('<span class="pill gold">TICKER</span>');
+    if (sv.onAir && sv.live) pills.push(`<span class="pill gold">♪ ${esc(sv.live.title)}${sv.live.artist ? " — " + esc(sv.live.artist) : ""}</span>`);
+    if (vp.length) pills.push(`<span class="pill red">▶ ${esc(vp.join(", "))}</span>`);
+    const pk = pills.join(""); if (pk !== tick.k) { tick.k = pk; $("#onair").innerHTML = pk; }
     const s = SS(), sd = $("#sd"), vis = !!s && s.left > -30000; sd.classList.toggle("hidden", !vis);
     if (vis) { $("#sdt").textContent = s.left <= 0 ? "LIVE" : fmtCd(s.left); $("#sda").textContent = "Start " + hhmm(s.at); }
   };
+  $("#sl").onclick = e => { const r = e.target.closest("[data-i]"); if (r) patch("", { active: +r.dataset.i, activeAt: now() }); };
   tick(); setInterval(tick, 250);
   micUI("#dev", "#amic"); mountMeter("cv"); recMount(); fsInit(); wake();
 
-  let key = "", lastA = -2;
+  let key = "", lastA = -2, lastN = null;
   onState = () => {
     $("#conn").textContent = db ? "Synced" : "Offline";
     const a = st.schedule[st.active], n = st.schedule[st.active + 1];
+    if (st.active !== lastN) { lastN = st.active; const nb = $("#now").parentElement; nb.animate([{ boxShadow: "0 0 0 3px #FFCC00" }, { boxShadow: "0 0 0 0 transparent" }], { duration: 1200 }); }
     $("#now").innerHTML = a ? `<div class="flex items-baseline gap-3 flex-wrap"><span class="time tabular-nums text-2xl">${esc(a.time)}</span><span class="font-extrabold text-[#FFCC00] leading-tight" style="font-size:clamp(24px,3.2vw,46px)">${esc(a.title)}</span>${chips(a)}</div>
         ${a.title_bs ? `<div class="text-xl text-[#FFCC00]/75">${esc(a.title_bs)}</div>` : ""}${a.details ? `<div class="text-slate-300">${esc(a.details)}</div>` : ""}
         <div class="mt-2 text-slate-400">Next / Slijedi: <b class="text-slate-200">${n ? esc(n.time + " " + n.title) : "–"}</b> <span class="text-xs">· ${st.active + 1}/${st.schedule.length}</span></div>`
@@ -865,7 +879,7 @@ function studio() {
     const k = JSON.stringify([st.schedule, st.active]);
     if (k !== key) {
       key = k;
-      $("#sl").innerHTML = st.schedule.length ? st.schedule.map((r, i) => `<div class="${i === st.active ? "act " : ""}grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg px-3 py-2 ${i === st.active ? "bg-[#FFCC00] text-[#0B192C] font-bold" : i < st.active ? "opacity-40 bg-[#06101f]" : "bg-[#06101f]"}"><span class="tabular-nums ${i === st.active ? "text-xl" : ""}">${esc(r.time)}</span><span class="min-w-0"><span class="block truncate ${i === st.active ? "text-xl" : ""}">${esc(r.title)}</span>${r.title_bs ? `<span class="block truncate text-xs font-normal opacity-70">${esc(r.title_bs)}</span>` : ""}</span><span class="text-sm opacity-80 whitespace-nowrap">${chips(r)}</span></div>`).join("")
+      $("#sl").innerHTML = st.schedule.length ? st.schedule.map((r, i) => `<div data-i="${i}" class="${i === st.active ? "act " : ""}cursor-pointer select-none grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg px-3 py-3 ${i === st.active ? "bg-[#FFCC00] text-[#0B192C] font-bold" : i < st.active ? "opacity-40 bg-[#06101f]" : "bg-[#06101f]"}"><span class="tabular-nums ${i === st.active ? "text-xl" : ""}">${esc(r.time)}</span><span class="min-w-0"><span class="block truncate ${i === st.active ? "text-xl" : ""}">${esc(r.title)}</span>${r.title_bs ? `<span class="block truncate text-xs font-normal opacity-70">${esc(r.title_bs)}</span>` : ""}</span><span class="text-sm opacity-80 whitespace-nowrap">${chips(r)}</span></div>`).join("")
         : `<div class="text-slate-400">Waiting for the control room to publish a schedule.</div>`;
     }
     if (st.active !== lastA) { lastA = st.active; const el = $("#sl .act"), sl = $("#sl"); if (el) sl.scrollTo({ top: Math.max(0, el.offsetTop - sl.clientHeight * .3), behavior: "smooth" }); }
@@ -878,14 +892,14 @@ function prompter() {
   const mir = localStorage.getItem("bhrt-mirror") === "1";
   $("#app").innerHTML = `<div class="h-screen flex flex-col" id="ptroot">
     <header class="flex items-center gap-3 px-3 pb-2 safe-t border-b border-[#1d3557] bg-[#0B192C]">
-      <img src="${LOGO}" alt="BHRT" class="h-8"><div class="font-bold">Prompter</div><span id="ptrem" class="pill hidden"></span><span id="ptrec" class="pill red hidden"><i class="fdot"></i>REC <span id="ptrect"></span></span>
+      <img src="${LOGO}" alt="BHRT" class="h-8"><div class="font-bold">Prompter</div><span id="ptrem" class="pill hidden"></span><span id="ptsd" class="pill gold hidden"></span><span id="ptrec" class="pill red hidden"><i class="fdot"></i>REC <span id="ptrect"></span></span>
       <div class="ml-auto mr-20 flex items-center gap-2"><span id="conn" class="text-xs text-slate-400"></span>
         <button id="ptmir" class="btn py-1 text-sm">⇋ Mirror</button><button id="ptsb" class="btn py-1 text-sm">Panel</button><button id="fsb" class="btn py-1 text-sm">⛶</button></div>
     </header>
     <div class="flex-1 min-h-0 flex relative">
       <div class="flex-1 min-w-0 relative bg-black" id="ptstage">
         <div class="ptprog"><i id="ptpr"></i></div>
-        <div id="ptmirror" class="absolute inset-0 ${mir ? "mir" : ""}"><div class="scr bg-black" id="pt"><div class="pt-fade t"></div><div class="pt-fade b"></div><div class="pt-band"><i class="l"></i><i class="r"></i></div><div id="pt-text"></div></div></div>
+        <div id="ptmirror" class="absolute inset-0 ${mir ? "mir" : ""}"><div class="scr bg-black" id="pt" style="touch-action:none"><div class="pt-fade t"></div><div class="pt-fade b"></div><div class="pt-band"><i class="l"></i><i class="r"></i></div><div id="pt-text"></div></div></div>
         <div id="rcbox" class="rcbox hidden"><video id="rcpv" playsinline muted autoplay></video><span class="rt">● REC <b id="rcpt"></b></span></div>
         <div id="ptctl" class="ptctl">
           <div class="grp"><button class="btn" id="ptt" title="Top">⏮</button><button class="btn" id="ptjb" title="Back">⏪</button><button class="btn gold" id="ptplay" style="min-width:96px">▶ Play</button><button class="btn" id="ptjf" title="Forward">⏩</button></div>
@@ -911,7 +925,26 @@ function prompter() {
   };
   const prUpd = o => patch("pr", { anchor: prPos(), at: now(), ...o });
   const showCtl = () => { ctl.classList.remove("hid"); clearTimeout(hideT); if (st.pr.playing) hideT = setTimeout(() => ctl.classList.add("hid"), 5000); };
-  pt.onclick = () => ctl.classList.contains("hid") ? showCtl() : ctl.classList.add("hid");
+  /* manual scrolling: drag (finger/mouse) or wheel; position is shared, so every prompter + the control preview follow */
+  let ovr = null, drag = null, lastSend = 0, wt = 0;
+  const maxPos = () => Math.max(1, H - 80), clampP = v => Math.min(Math.max(v, 0), maxPos());
+  const sendPos = (pos, force) => { const t = performance.now(); if (force || t - lastSend > 60) { lastSend = t; patch("pr", { anchor: pos, at: now() }); } };
+  pt.addEventListener("pointerdown", e => { drag = { y: e.clientY, p0: clampP(prPos()), moved: false }; try { pt.setPointerCapture(e.pointerId); } catch { } });
+  pt.addEventListener("pointermove", e => {
+    if (!drag) return; const dy = e.clientY - drag.y; if (!drag.moved && Math.abs(dy) < 6) return;
+    drag.moved = true; ovr = clampP(drag.p0 - dy); sendPos(ovr); showCtl();
+  });
+  const endDrag = e => {
+    if (!drag) return; const d = drag; drag = null;
+    if (d.moved && e.type !== "pointercancel") { sendPos(ovr, true); ovr = null; }
+    else if (d.moved) ovr = null;
+    else ctl.classList.contains("hid") ? showCtl() : ctl.classList.add("hid");   // plain tap: show/hide controls
+  };
+  pt.addEventListener("pointerup", endDrag); pt.addEventListener("pointercancel", endDrag);
+  pt.addEventListener("wheel", e => {
+    e.preventDefault(); ovr = clampP((ovr ?? prPos()) + e.deltaY * (e.deltaMode === 1 ? 20 : 1)); sendPos(ovr);
+    clearTimeout(wt); wt = setTimeout(() => { sendPos(ovr, true); ovr = null; }, 150);
+  }, { passive: false });
   ctl.addEventListener("pointerdown", showCtl);
   $("#ptplay").onclick = () => prUpd({ playing: !st.pr.playing });
   $("#ptt").onclick = () => patch("pr", { anchor: 0, at: now() });
@@ -924,16 +957,18 @@ function prompter() {
   document.addEventListener("keydown", e => {
     if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     if (e.code === "Space") { e.preventDefault(); $("#ptplay").click(); }
+    else if (e.key === "PageDown") { e.preventDefault(); $("#ptjf").click(); } else if (e.key === "PageUp") { e.preventDefault(); $("#ptjb").click(); }
     else if (e.key === "ArrowUp") $("#spp").click(); else if (e.key === "ArrowDown") $("#spm").click(); else if (e.key === "Home") $("#ptt").click();
   });
   const loop = () => {
     if (!$("#pt")) return;
-    const max = Math.max(1, H - 80), raw = prPos(), p = Math.min(Math.max(raw, 0), max);
+    const max = Math.max(1, H - 80), raw = ovr ?? prPos(), p = Math.min(Math.max(raw, 0), max);
     body.style.transform = `translate3d(0,${boxH * .38 - p}px,0)`; prog.style.width = (p / max * 100).toFixed(1) + "%";
     const t = performance.now();
     if (t - lastRem > 300) {
       lastRem = t; const r = $("#ptrem"), rem = st.pr.speed > 0 ? (max - p) / st.pr.speed * 1000 : 0;
       r.classList.toggle("hidden", !st.script || st.pr.speed <= 0); r.textContent = "−" + fmtEl(rem);
+      const ss = SS(), pd = $("#ptsd"); pd.classList.toggle("hidden", !(ss && ss.left > -30000)); if (ss) pd.textContent = ss.left <= 0 ? "LIVE" : "start " + fmtCd(ss.left);
       const rc = $("#ptrec"); rc.classList.toggle("hidden", !REC.on); if (REC.on) $("#ptrect").textContent = fmtEl(Date.now() - REC.t0);
     }
     requestAnimationFrame(loop);
@@ -970,7 +1005,7 @@ function viewer() {
 function output() {
   document.documentElement.style.background = document.body.style.background = "transparent";
   $("#reset").classList.add("hidden"); $("#toast").style.display = "none";
-  $("#app").innerHTML = '<div id="pgm" style="position:fixed;inset:0"></div>';
+  $("#app").innerHTML = '<div id="pgm" style="position:fixed;inset:0;z-index:24;pointer-events:none"></div>';
   const draw = () => gfx($("#pgm"), { ...ovView(), song: sgView() }); onState = draw; draw(); setInterval(draw, 500);
 }
 ({ control, studio, prompter, viewer, output }[role] || landing)();
