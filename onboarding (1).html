@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<title>Show einrichten</title>
+<link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/d/d6/Logo_of_BHRT_%281998-%29.svg">
+<style>
+:root{color-scheme:light dark;--bg:#F2F2F7;--card:#fff;--sep:rgba(60,60,67,.16);--txt:#000;--sec:#6c6c70;--blue:#0071E3;--red:#D70015;--gold:#FFCC00;--fill:rgba(120,120,128,.14);--ease:cubic-bezier(.2,.8,.2,1)}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#1C1C1E;--sep:rgba(84,84,88,.55);--txt:#fff;--sec:#98989F;--blue:#0A84FF;--red:#FF453A}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:0 env(safe-area-inset-right) calc(120px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:10px}
+button{font:inherit;color:inherit}
+.glass{background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:saturate(180%) blur(22px);backdrop-filter:saturate(180%) blur(22px)}
+@media(prefers-reduced-transparency:reduce){.glass{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}}
+header{position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top)}
+.bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;max-width:640px;margin:auto;min-height:48px;padding:0 8px}
+.tl{background:none;border:0;min-height:44px;padding:0 10px;color:var(--blue);cursor:pointer;display:flex;align-items:center;gap:2px}
+.tl[disabled]{opacity:0;pointer-events:none}
+#stepbtn{justify-self:center;font-weight:600;font-size:15px;color:var(--txt)}#stepbtn small{color:var(--sec);font-weight:500;margin-left:4px}
+.rt{justify-self:end;display:flex;align-items:center;gap:8px;padding-right:10px}#save{font-size:12px;color:var(--sec)}.mini{height:30px;width:auto;box-sizing:border-box;background:#0B192C;border-radius:8px;padding:4px 9px;display:block}.hero{display:inline-block;background:linear-gradient(135deg,#12294a,#050b14);border-radius:20px;padding:16px 26px;margin:18px 0 4px;border-bottom:3px solid var(--gold);box-shadow:0 10px 28px rgba(0,20,50,.28)}.hero img{height:46px;width:auto;display:block}@media(max-width:420px){#save{display:none}}
+.prog{height:3px;background:var(--fill)}.prog i{display:block;height:100%;width:0;background:var(--gold);border-radius:0 2px 2px 0;transition:width .5s var(--ease)}
+main{max-width:640px;margin:auto;padding:8px 20px}
+.step{animation:in .45s var(--ease)}@keyframes in{from{opacity:0;transform:translateX(calc(24px*var(--d,1)))}}
+@media(prefers-reduced-motion:reduce){.step{animation:none}.prog i{transition:none}}
+h1{font-size:clamp(32px,8vw,40px);line-height:1.08;letter-spacing:-.022em;font-weight:700;margin:12px 0 6px}
+h1:focus{outline:none}
+.lead{color:var(--sec);margin:0 0 24px;font-size:17px}
+.cap{margin:22px 16px 7px;font-size:13px;color:var(--sec);text-transform:uppercase;letter-spacing:.02em;display:flex;align-items:center}.cap b{flex:1;font-weight:500}
+.foot{margin:7px 16px 0;font-size:13px;color:var(--sec)}
+.grp{background:var(--card);border-radius:14px;overflow:hidden}
+.r{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 16px;position:relative}
+.r+.r::before{content:"";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--sep)}
+.r>span{flex:0 0 36%;max-width:150px}.r.col{flex-direction:column;align-items:stretch;gap:4px;padding:12px 16px}.r.col>span{flex:none;max-width:none}
+input:not([type=checkbox]),select,textarea{flex:1;min-width:0;width:100%;border:0;background:transparent;color:var(--txt);font:inherit;min-height:48px;text-align:right;padding:0;-webkit-appearance:none;appearance:none}
+input::placeholder,textarea::placeholder{color:color-mix(in srgb,var(--sec) 70%,transparent)}
+input:focus,select:focus,textarea:focus{outline:none}.r:focus-within>span{color:var(--blue)}
+.r.col textarea{text-align:left;padding:2px 0 6px;resize:none;min-height:60px;line-height:1.4}
+.r.one input{text-align:left}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;margin-left:auto;width:51px;height:31px;border-radius:16px;background:var(--fill);position:relative;cursor:pointer;transition:background .25s}
+input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+input[type=checkbox]:checked{background:#34C759}input[type=checkbox]:checked::after{transform:translateX(20px)}
+.x{flex:none;background:none;border:0;color:var(--red);min-width:44px;min-height:44px;margin-right:-12px;cursor:pointer;font-size:18px}
+.lnk{display:flex;align-items:center;gap:8px;width:100%;min-height:50px;padding:0 16px;border:0;background:var(--card);border-radius:14px;color:var(--blue);cursor:pointer;text-align:left;margin-top:12px}
+.lnk.red{color:var(--red)}.grp .lnk{border-radius:0;margin:0;position:relative}.grp .lnk+.lnk::before,.grp .r+.lnk::before{content:"";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--sep)}
+details>summary{list-style:none;cursor:pointer}details>summary::-webkit-details-marker{display:none}
+details.more>summary{margin-top:10px;color:var(--blue);padding:8px 16px;min-height:44px;display:flex;align-items:center}
+details.more>summary::after{content:"›";margin-left:6px;transition:transform .2s;font-size:20px}details.more[open]>summary::after{transform:rotate(90deg)}
+details.dis{background:var(--card);border-radius:14px;margin-top:12px;overflow:hidden}
+details.dis>summary{display:flex;align-items:center;min-height:50px;padding:0 16px}details.dis>summary::after{content:"›";margin-left:auto;color:var(--sec);font-size:20px;transition:transform .2s}details.dis[open]>summary::after{transform:rotate(90deg)}
+details.dis[open]>summary{border-bottom:1px solid var(--sep)}
+details.mn{position:relative}details.mn>summary{width:44px;height:44px;display:grid;place-items:center;color:var(--blue);font-size:20px;text-transform:none;border-radius:22px}
+.menu{position:absolute;right:0;top:44px;z-index:3;min-width:210px;background:var(--card);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.28);overflow:hidden}
+.menu button{display:block;width:100%;min-height:46px;padding:0 16px;text-align:left;background:none;border:0;cursor:pointer;text-transform:none;letter-spacing:0;font-size:17px}
+.menu button+button{border-top:1px solid var(--sep)}.menu button[disabled]{color:var(--sec);opacity:.5}.menu .red{color:var(--red)}
+footer{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:12px 20px calc(12px + env(safe-area-inset-bottom))}
+footer>div{max-width:640px;margin:auto;display:flex;flex-direction:column;align-items:center;gap:2px}
+.go{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--blue);color:#fff;font-weight:600;font-size:17px;cursor:pointer;transition:transform .15s,opacity .2s}
+.go:active{transform:scale(.98);opacity:.85}.skip{background:none;border:0;color:var(--blue);min-height:44px;cursor:pointer;padding:0 16px}.skip[hidden]{display:none}
+.warn{color:var(--red);font-size:15px;padding:10px 16px}.val{color:var(--sec);margin-left:auto}
+pre{margin:0;padding:12px 16px;max-height:340px;overflow:auto;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+dialog{width:min(92vw,420px);max-height:80vh;border:0;border-radius:20px;padding:0;background:var(--card);color:var(--txt);box-shadow:0 20px 60px rgba(0,0,0,.4)}dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h2{margin:0;padding:18px 20px 8px;font-size:20px}dialog .grp{border-radius:0}dialog .r{padding:0;width:100%;border:0;background:none;text-align:left}dialog .r button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:0 20px;cursor:pointer}
+dialog .r button[aria-current]{font-weight:700;color:var(--blue)}.ck{color:#34C759;margin-left:auto}
+#toast{position:fixed;left:50%;bottom:calc(122px + env(safe-area-inset-bottom));transform:translate(-50%,16px);opacity:0;pointer-events:none;background:#2c2c2e;color:#fff;padding:0 18px;min-height:46px;border-radius:23px;display:flex;align-items:center;gap:14px;font-size:15px;transition:.3s var(--ease);z-index:9;white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}#toast button{background:none;border:0;color:#6cb6ff;font-weight:600;min-height:44px;cursor:pointer}
+</style>
+</head>
+<body>
+<header class="glass"><div class="bar"><button class="tl" id="back" aria-label="Zurück">‹ Zurück</button><button class="tl" id="stepbtn" aria-haspopup="dialog"></button><div class="rt"><span id="save" role="status"></span><img class="mini" src="https://upload.wikimedia.org/wikipedia/commons/d/d6/Logo_of_BHRT_%281998-%29.svg" alt="BHRT" onerror="this.remove()"></div></div><div class="prog" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100"><i></i></div></header>
+<main id="S"></main>
+<footer class="glass"><div><button class="go" id="next">Weiter</button><button class="skip" id="skip">Überspringen</button></div></footer>
+<dialog id="dlg" aria-label="Alle Schritte"></dialog>
+<div id="toast" role="status"></div>
+<datalist id="types"><option>News<option>Sport<option>Interview<option>Ceremony<option>Music<option>Talk<option>Highlights</datalist>
+
+<script type="module">
+const CFG={apiKey:"AIzaSyBu9VM10UM5IhUOk-zAf-F5XrG55nrfSsk",authDomain:"bewerbungen-60a63.firebaseapp.com",databaseURL:"https://bewerbungen-60a63-default-rtdb.europe-west1.firebasedatabase.app",projectId:"bewerbungen-60a63",storageBucket:"bewerbungen-60a63.firebasestorage.app",messagingSenderId:"21188826929",appId:"1:21188826929:web:3f33e9270b159226d80210"};
+let FB;const fb=async()=>FB||(FB=await(async()=>{const[a,d]=await Promise.all([import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js")]);return{d,db:d.getDatabase(a.initializeApp(CFG,"onboarding"))}})());
+const $=(s,r=document)=>r.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LISTS=["hosts","schedule","overlays","ticker","videos","sponsors","talkback","actions"];
+const DOS=["lower","lower_off","ticker","ticker_off","offair_all","speed","viewer_msg","fault","fault_off","intro_play","intro_stop","sched_toggle","lang"];
+/* Feld: [key, Label, Typ, Platzhalter|Optionen|Zeilen, Datalist]. m = Anzahl Hauptfelder, Rest unter „Mehr Optionen“ */
+const STEPS=[
+{t:"Wie heißt deine Show?",s:"Der Titel erscheint auf dem Programm-Board.",x:[{k:"show",f:[["title","Titel (EN)","text","Winter Sports Live"],["title_bs","Titel (BS)","text","Zimski sportovi uživo"]]}]},
+{t:"Wo und wann?",s:"Showort und Sendebeginn.",x:[{k:"show",f:[["location","Showort","text","Sölden"],["channel","Sender","text","BHT 1"],["date","Datum","date"],["start","Beginn","time"]]}]},
+{t:"Wer moderiert?",s:"Daraus entstehen die Namenseinblendungen.",x:[{k:"hosts",l:1,one:"Moderator",add:"Moderator hinzufügen",m:2,f:[["name","Name","text","Anna Lang"],["role","Rolle","text","Host"],["role_bs","Rolle (BS)","text","Voditeljica"],["image","Foto-URL","url","https://…"]]}]},
+{t:"Der Ablauf",s:"Trage die Programmpunkte der Reihe nach ein.",x:[{k:"schedule",l:1,one:"Programmpunkt",add:"Programmpunkt hinzufügen",m:2,f:[["time","Uhrzeit","time"],["title","Titel","text","Riesenslalom, 1. Lauf"],["title_bs","Titel (BS)","text"],["type","Art","text","Sport","types"],["details","Details","text","Studio"],["live","Live","check"],["script","Eigenes Skript","area",3]]}]},
+{t:"Einblendungen",s:"Eigene Grafiken wie „Medaillenspiegel“. Optional.",o:1,x:[{k:"overlays",l:1,one:"Einblendung",add:"Einblendung hinzufügen",m:2,f:[["title","Titel","text"],["subtitle","Untertitel","text"],["subtitle_bs","Untertitel (BS)","text"]]}]},
+{t:"Ticker",s:"Laufband am unteren Rand, zweisprachig. Optional.",o:1,x:[{k:"ticker",l:1,one:"Ticker-Zeile",add:"Zeile hinzufügen",m:2,f:[["en","Text (EN)","text"],["bs","Text (BS)","text"]]}]},
+{t:"Videos und Musik",s:"Clips mit Songtitel erscheinen als „Now Playing“.",o:1,x:[{k:"videos",l:1,one:"Clip",add:"Clip hinzufügen",m:2,f:[["name","Name","text","Opening VT"],["link","Link (mp4)","url","https://…"],["title","Songtitel","text"],["artist","Interpret","text"],["album","Album","text"],["year","Jahr","number"],["audio","Mit Ton","check"],["loop","Wiederholen","check"]]}]},
+{t:"Dein Skript",s:"Zeit am Zeilenanfang = Marker, [ECKIG] = Regie-Cue, (RUND) = Notiz.",o:1,x:[{k:"",f:[["script","Teleprompter-Text","area",14]]}]},
+{t:"Teleprompter und Störung",s:"Tempo, Größe und Text bei technischen Problemen.",o:1,x:[{k:"prompter",f:[["speed","Tempo (px/s)","number","35"],["size","Schrift (px)","number","60"]]},{k:"faultMessage",h:"Störungsmeldung",f:[["en","Englisch","text","Technical difficulties"],["bs","Bosnisch","text","Tehničke poteškoće"]]}]},
+{t:"Regie-Tasten",s:"Eigene Schnellaktionen. Kannst du auch leer lassen.",o:1,x:[{k:"actions",l:1,one:"Taste",add:"Taste hinzufügen",m:2,f:[["label","Beschriftung","text","Intro"],["do","Aktion","sel",DOS],["title","Titel","text"],["subtitle","Untertitel","text"],["text","Text","text"],["value","Wert","number"],["key","Kürzel","text","1"],["cls","Farbe","sel",["gold","red"]]]}]},
+{t:"Noch mehr?",s:"Alles Weitere ist optional und eingeklappt.",o:1,x:[{k:"sponsors",st:1,c:1,h:"Sponsoren-Logos",add:"Logo-URL hinzufügen"},{k:"scoreboard",c:1,h:"Spielstand",f:[["home","Heim","text"],["away","Gast","text"],["label","Beschriftung","text"]]},{k:"talkback",st:1,c:1,h:"Talkback-Zurufe",add:"Zuruf hinzufügen"},{k:"",c:1,h:"Anzeige",f:[["viz","Pegelanzeige","sel",["bars","ring"]],["viewerMessage","Zuschauer-Nachricht","text"]]}]},
+{t:"Fast geschafft",s:"Prüfe dein Show-File und nimm es mit.",x:null}];
+const N=STEPS.length;STEPS[0].hero=STEPS[N-1].hero=1;const LOGO="https://upload.wikimedia.org/wikipedia/commons/d/d6/Logo_of_BHRT_%281998-%29.svg";let D={},n=0,undo=null,dir=1;
+const val=p=>p.split(".").reduce((o,k)=>o==null?o:o[k],D);
+const setv=(p,v)=>{const a=p.split(".");let o=D;a.slice(0,-1).forEach((k,i)=>{if(o[k]==null)o[k]=isNaN(a[i+1])?{}:[];o=o[k]});o[a.at(-1)]=v};
+const has=v=>Array.isArray(v)?v.some(has):v&&typeof v==="object"?Object.values(v).some(has):v!==""&&v!=null&&v!==false;
+const clean=v=>Array.isArray(v)?v.map(clean).filter(has):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,clean(x)]).filter(([,x])=>has(x))):v;
+const slug=s=>String(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"entwurf";
+function out(){const o=clean(D);if(o.videos){const s=o.videos.filter(v=>v.title).map(v=>clean({title:v.title,artist:v.artist,album:v.album,year:v.year}));if(s.length)o.songs=s}if(o.scoreboard&&!(o.scoreboard.home||o.scoreboard.away))delete o.scoreboard;return o}
+function warns(){const o=out(),w=[],t=(o.schedule||[]).map(r=>r.time||"");
+ if(!o.show?.title)w.push("Der Show-Titel fehlt.");if((o.schedule||[]).some(r=>!r.time))w.push("Ein Programmpunkt hat keine Uhrzeit.");
+ if(t.some((x,i)=>i&&x&&t[i-1]&&x<t[i-1]))w.push("Die Uhrzeiten sind nicht aufsteigend.");
+ if((D.videos||[]).some(v=>has(v)&&!v.link))w.push("Clips ohne Link werden beim Import ignoriert.");return w}
+
+/* ---------- Rendering ---------- */
+const ctl=(p,[k,l,t,x,dl])=>{const v=val(p);
+ if(t==="check")return`<label class="r"><span>${l}</span><input type="checkbox" role="switch" data-p="${p}" ${v?"checked":""}></label>`;
+ if(t==="area")return`<label class="r col"><span>${l}</span><textarea data-p="${p}" rows="${x}">${esc(v)}</textarea></label>`;
+ if(t==="sel")return`<label class="r"><span>${l}</span><select data-p="${p}" style="text-align-last:right">${["",...x].map(o=>`<option ${o==v?"selected":""}>${o}</option>`).join("")}</select></label>`;
+ return`<label class="r"><span>${l}</span><input data-p="${p}" type="${t}" ${t==="number"?'inputmode="decimal"':""} value="${esc(v)}" placeholder="${esc(x)}" ${dl?`list="${dl}"`:""}></label>`};
+const grp=(f,b)=>`<div class="grp">${f.map(F=>ctl(b?b+"."+F[0]:F[0],F)).join("")}</div>`;
+const menu=(k,i,L)=>`<details class="mn"><summary aria-label="Optionen">•••</summary><div class="menu"><button data-a="up" data-k="${k}" data-i="${i}" ${i?"":"disabled"}>Nach oben</button><button data-a="down" data-k="${k}" data-i="${i}" ${i<L.length-1?"":"disabled"}>Nach unten</button><button data-a="dup" data-k="${k}" data-i="${i}">Duplizieren</button><button class="red" data-a="del" data-k="${k}" data-i="${i}">Löschen</button></div></details>`;
+function sec(s){const head=s.h&&!s.c?`<div class="cap"><b>${s.h}</b></div>`:"";
+ if(s.l){const L=val(s.k)||[],m=s.m;return L.map((r,i)=>`<div class="cap"><b>${s.one} ${i+1}</b>${L.length>1||has(r)?menu(s.k,i,L):""}</div>${grp(s.f.slice(0,m),`${s.k}.${i}`)}${s.f.length>m?`<details class="more"${s.f.slice(m).some(F=>has(r[F[0]]))?" open":""}><summary>Mehr Optionen</summary>${grp(s.f.slice(m),`${s.k}.${i}`)}</details>`:""}`).join("")+`<button class="lnk" data-a="add" data-k="${s.k}">＋ ${s.add}</button>`}
+ if(s.st){const L=val(s.k)||[],b=`<div class="grp">${L.map((v,i)=>`<div class="r one"><input data-p="${s.k}.${i}" value="${esc(v)}" placeholder="https://…" aria-label="Eintrag ${i+1}"><button class="x" data-a="del" data-k="${s.k}" data-i="${i}" aria-label="Löschen">✕</button></div>`).join("")}<button class="lnk" data-a="add" data-k="${s.k}" data-s="1">＋ ${s.add}</button></div>`;
+  return s.c?`<details class="dis"${has(L)?" open":""}><summary>${s.h}</summary>${b}</details>`:head+b}
+ const g=grp(s.f,s.k);return s.c?`<details class="dis"${s.f.some(F=>has(val(s.k?s.k+"."+F[0]:F[0])))?" open":""}><summary>${s.h}</summary>${g}</details>`:head+g}
+function review(){const o=out(),w=warns(),c=k=>(o[k]||[]).length,row=(a,l,cls="")=>`<button class="lnk ${cls}" data-a="${a}">${l}</button>`,nm=localStorage.getItem("bhrt-onb-name")||slug(o.show?.title||"")+(o.show?.date?"-"+o.show.date:"");
+ const st=[["Programmpunkte","schedule"],["Moderatoren","hosts"],["Einblendungen","overlays"],["Clips","videos"],["Tasten","actions"]];
+ return`<div class="grp">${st.map(([l,k])=>`<div class="r"><span style="max-width:none">${l}</span><span class="val" style="flex:none">${c(k)}</span></div>`).join("")}</div>
+ ${w.length?`<div class="cap"><b>Hinweise</b></div><div class="grp">${w.map(x=>`<div class="warn">${x}</div>`).join("")}</div>`:`<p class="foot">Keine Auffälligkeiten gefunden.</p>`}
+ <details class="dis"><summary>JSON ansehen</summary><pre>${esc(JSON.stringify(o,null,2))}</pre></details>
+ <div class="cap"><b>Mitnehmen</b></div><div class="grp">${row("copy","JSON kopieren")}${row("dl","Als Datei laden")}<label class="lnk" style="cursor:pointer">Bestehendes JSON importieren<input type="file" id="imp" accept=".json" hidden></label></div>
+ <div class="cap"><b>Firebase</b></div><div class="grp"><label class="r"><span>Name</span><input id="dn" value="${esc(nm)}"></label>${row("cloud","In Firebase speichern")}${row("drafts","Gespeicherte Entwürfe")}</div><div id="dl"></div>
+ <p class="foot">Entwürfe liegen unter onboarding/drafts, getrennt vom Live-Stand.</p><div class="grp" style="margin-top:22px">${row("reset","Alles zurücksetzen","red")}</div>`}
+const done=i=>STEPS[i].x?STEPS[i].x.some(s=>s.k?has(val(s.k)):s.f.some(F=>has(val(F[0])))):false;
+function render(go){const st=STEPS[n];LISTS.forEach(k=>D[k]=Object.values(D[k]||[]).filter(x=>x!=null));
+ STEPS[n].x?.forEach(s=>{if(s.l&&!D[s.k].length)D[s.k]=[{}];if(s.st&&s.k&&!s.c&&!D[s.k].length)D[s.k]=[""]});
+ $("#S").innerHTML=`<div class="step" ${go?`style="--d:${dir}"`:""}>${st.hero?`<div class="hero"><img src="${LOGO}" alt="BHRT" onerror="this.parentNode.remove()"></div>`:""}<h1 tabindex="-1">${st.t}</h1><p class="lead">${st.s}</p>${st.x?st.x.map(sec).join(""):review()}</div>`;
+ $("#stepbtn").innerHTML=`Schritt ${n+1}<small>von ${N}</small>`;const p=Math.round((n+1)/N*100),b=$(".prog");b.setAttribute("aria-valuenow",p);$("i",b).style.width=p+"%";
+ $("#back").disabled=!n;$("#next").style.display=n==N-1?"none":"";$("#skip").hidden=!(st.o&&!done(n)&&n<N-1);
+ $("#next").textContent=n==N-2?"Zur Übersicht":"Weiter";if(go){scrollTo({top:0});$("h1").focus({preventScroll:true})}}
+const go=i=>{dir=i>=n?1:-1;n=Math.max(0,Math.min(i,N-1));keep();render(1)};
+
+const toast=(m,u)=>{const t=$("#toast");t.innerHTML=esc(m)+(u?"<button>Rückgängig</button>":"");t.classList.add("on");if(u)$("button",t).onclick=()=>{u();t.classList.remove("on")};clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("on"),u?6000:2400)};
+const snap=()=>{const j=JSON.stringify(D);undo=()=>{D=JSON.parse(j);render()}};
+let dt;const keep=()=>{clearTimeout(dt);dt=setTimeout(()=>{localStorage.setItem("bhrt-onb",JSON.stringify({D,n}));$("#save").textContent="Gesichert";setTimeout(()=>$("#save").textContent="",1800);$("#skip").hidden=!(STEPS[n].o&&!done(n)&&n<N-1)},300)};
+$("#S").addEventListener("input",e=>{const t=e.target,p=t.dataset.p;if(!p)return;setv(p,t.type==="checkbox"?t.checked:t.type==="number"?(t.value===""?"":+t.value):t.value);keep()});
+$("#next").onclick=()=>go(n+1);$("#skip").onclick=()=>go(n+1);$("#back").onclick=()=>go(n-1);
+$("#stepbtn").onclick=()=>{const d=$("#dlg");d.innerHTML=`<h2>Alle Schritte</h2><div class="grp">${STEPS.map((s,i)=>`<div class="r"><button data-go="${i}" ${i==n?'aria-current="step"':""}>${i+1}. ${s.t}${done(i)?'<span class="ck">✓</span>':""}</button></div>`).join("")}</div>`;d.showModal()};
+$("#dlg").addEventListener("click",e=>{const g=e.target.closest("[data-go]");if(g){$("#dlg").close();go(+g.dataset.go)}else if(e.target.id==="dlg")$("#dlg").close()});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#S input:not([type=checkbox])")&&n<N-1)go(n+1)});
+document.addEventListener("click",async e=>{const b=e.target.closest("#S [data-a]");if(!b)return;const{a,k,i,s}=b.dataset,j=+i;const L=k&&(val(k)||(setv(k,[]),val(k)));
+ if(a==="add"){snap();L.push(s?"":{});render();keep();const r=[...document.querySelectorAll("#S .grp")].pop();return(s?r:[...document.querySelectorAll("#S .cap")].pop()?.nextElementSibling)?.querySelector("input,textarea")?.focus()}
+ if(a==="up"||a==="down"){snap();const q=a==="up"?j-1:j+1;[L[j],L[q]]=[L[q],L[j]];render();return keep()}
+ if(a==="dup"){snap();L.splice(j+1,0,structuredClone(L[j]));render();return keep()}
+ if(a==="del"){snap();L.splice(j,1);render();keep();return toast("Gelöscht",undo)}
+ if(a==="copy"){await navigator.clipboard.writeText(JSON.stringify(out(),null,2));return toast("JSON kopiert")}
+ if(a==="dl"){const o=out(),l=document.createElement("a");l.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:"application/json"}));l.download=slug(o.show?.title||"show")+".json";l.click();return toast("Datei erstellt")}
+ if(a==="reset"){if(!confirm("Alle Eingaben auf diesem Gerät leeren? Firebase-Entwürfe bleiben erhalten."))return;snap();D={};n=0;render(1);keep();return toast("Zurückgesetzt",undo)}
+ if(a==="cloud"){const name=slug($("#dn").value);localStorage.setItem("bhrt-onb-name",name);try{const{d,db}=await fb();await d.set(d.ref(db,"onboarding/drafts/"+name),{name,updated:d.serverTimestamp(),data:D});toast("Gespeichert: "+name)}catch(x){toast("Fehler: "+x.message)}return}
+ try{const{d,db}=await fb();
+  if(a==="del-draft"&&confirm("Entwurf „"+k+"“ löschen?"))await d.remove(d.ref(db,"onboarding/drafts/"+k));
+  if(a==="load-draft"){const v=(await d.get(d.ref(db,"onboarding/drafts/"+k))).val();if(v){snap();D=v.data||{};render();keep();return toast("Geladen: "+k,undo)}}
+  const v=(await d.get(d.ref(db,"onboarding/drafts"))).val()||{};
+  $("#dl").innerHTML=`<div class="cap"><b>Entwürfe</b></div><div class="grp">${Object.values(v).map(r=>`<div class="r"><span style="flex:1;max-width:none">${esc(r.name)}</span><button class="skip" data-a="load-draft" data-k="${esc(r.name)}">Laden</button><button class="x" style="font-size:15px" data-a="del-draft" data-k="${esc(r.name)}">Löschen</button></div>`).join("")||'<div class="r">Noch keine Entwürfe.</div>'}</div>`}catch(x){toast("Firebase: "+x.message)}});
+$("#S").addEventListener("change",async e=>{if(e.target.id!=="imp")return;try{const j=JSON.parse(await e.target.files[0].text());snap();D={...j,videos:j.videos||j.clips,ticker:j.ticker||j.tickers};render();keep();toast("Importiert",undo)}catch(x){toast("Ungültiges JSON")}});
+try{const l=JSON.parse(localStorage.getItem("bhrt-onb")||"null");if(l){D=l.D||{};n=Math.min(l.n||0,N-1);toast("Entwurf wiederhergestellt")}}catch{}
+render(1);
+</script>
+</body>
+</html>
